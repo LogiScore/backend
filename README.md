@@ -91,7 +91,6 @@ Once running, visit:
 ### Project Structure
 
 ```
-logiscore-backend/
 ├── main.py                 # FastAPI application
 ├── requirements.txt        # Python dependencies
 ├── database/              # Database configuration
@@ -103,7 +102,9 @@ logiscore-backend/
 │   ├── users.py          # User endpoints
 │   ├── freight_forwarders.py
 │   ├── reviews.py        # Review endpoints
+│   ├── subscriptions.py  # Subscription endpoints
 │   └── search.py         # Search endpoints
+├── render.yaml           # Render deployment config
 └── README.md
 ```
 
