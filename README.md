@@ -1,6 +1,6 @@
 # LogiScore Backend API
 
-FastAPI backend for the LogiScore freight forwarder review platform.
+FastAPI backend for the LogiScore freight forwarder review platform with subscription management.
 
 ## Features
 
