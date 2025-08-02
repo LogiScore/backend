@@ -14,6 +14,11 @@ class User(Base):
     full_name = Column(String(255), nullable=True)
     avatar_url = Column(Text, nullable=True)
     company_name = Column(String(255), nullable=True)
+    hashed_password = Column(String(255), nullable=True)  # For email/password auth
+    reset_token = Column(String(255), nullable=True)  # For password reset
+    reset_token_expires = Column(DateTime(timezone=True), nullable=True)  # For password reset
+    verification_code = Column(String(6), nullable=True)  # For email verification
+    verification_code_expires = Column(DateTime(timezone=True), nullable=True)  # For email verification
     user_type = Column(String(20), default='shipper')
     subscription_tier = Column(String(20), default='free')
     stripe_customer_id = Column(String(255), nullable=True)
@@ -33,15 +38,7 @@ class FreightForwarder(Base):
     name = Column(String(255), nullable=False)
     website = Column(String(255), nullable=True)
     logo_url = Column(Text, nullable=True)
-    description = Column(Text, nullable=True)
-    headquarters = Column(String(255), nullable=True)
-    founded_year = Column(Integer, nullable=True)
-    employee_count = Column(String(100), nullable=True)
-    services = Column(Text, nullable=True)
-    is_verified = Column(Boolean, default=False)
-    is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
     # Relationships
     branches = relationship("Branch", back_populates="freight_forwarder")

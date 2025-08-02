@@ -13,7 +13,7 @@ import logging
 from database.database import get_db, get_engine
 from database.models import Base
 from auth.auth import get_current_user, create_access_token
-from routes import users, freight_forwarders, reviews, search
+from routes import users, freight_forwarders, reviews, search, subscriptions
 
 # Load environment variables
 load_dotenv()
@@ -35,12 +35,18 @@ app.add_middleware(
     allow_origins=[
         "https://logiscore.net",
         "https://logiscore-frontend.vercel.app",
+        "https://logiscore-frontend-git-main-evaluratenet.vercel.app",
+        "https://logiscore-frontend-git-main-evaluratenet.vercel.app",
         "http://localhost:3000",
-        "http://localhost:5173"
+        "http://localhost:5173",
+        "http://localhost:4173",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:4173"
     ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Security
@@ -62,6 +68,7 @@ app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(freight_forwarders.router, prefix="/api/freight-forwarders", tags=["freight-forwarders"])
 app.include_router(reviews.router, prefix="/api/reviews", tags=["reviews"])
 app.include_router(search.router, prefix="/api/search", tags=["search"])
+app.include_router(subscriptions.router, prefix="/api/subscriptions", tags=["subscriptions"])
 
 @app.get("/")
 async def root():
@@ -78,7 +85,8 @@ async def health_check():
     try:
         # Test database connection
         db = next(get_db())
-        db.execute("SELECT 1")
+        from sqlalchemy import text
+        db.execute(text("SELECT 1"))
         db_status = "healthy"
     except Exception as e:
         logger.error(f"Database health check failed: {e}")
@@ -94,6 +102,11 @@ async def health_check():
 async def test_endpoint():
     """Test endpoint for development"""
     return {"message": "API is working correctly"}
+
+@app.options("/{full_path:path}")
+async def options_handler(full_path: str):
+    """Handle CORS preflight requests"""
+    return {"message": "CORS preflight handled"}
 
 if __name__ == "__main__":
     import uvicorn

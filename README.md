@@ -145,4 +145,9 @@ Make sure to set all required environment variables in your deployment platform.
 
 ## License
 
-This project is proprietary software for LogiScore. 
+This project is proprietary software for LogiScore. # Database initialization fix
+# Database initialization fix
+# Database initialization fix
+# Trigger redeploy
+# Trigger redeploy
+# Force redeploy Fri Aug  1 01:38:37 +08 2025
