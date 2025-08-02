@@ -93,18 +93,24 @@ Once running, visit:
 ```
 ├── main.py                 # FastAPI application
 ├── requirements.txt        # Python dependencies
+├── runtime.txt            # Python runtime version
+├── render.yaml            # Render deployment config
+├── env.example            # Environment variables template
+├── DEPLOYMENT.md          # Deployment guide
 ├── database/              # Database configuration
 │   ├── database.py        # Database connection
 │   └── models.py          # SQLAlchemy models
 ├── auth/                  # Authentication
 │   └── auth.py           # JWT and OAuth logic
 ├── routes/               # API routes
+│   ├── __init__.py       # Routes package
+│   ├── admin.py          # Admin endpoints
+│   ├── auth.py           # Authentication endpoints
 │   ├── users.py          # User endpoints
 │   ├── freight_forwarders.py
 │   ├── reviews.py        # Review endpoints
 │   ├── subscriptions.py  # Subscription endpoints
 │   └── search.py         # Search endpoints
-├── render.yaml           # Render deployment config
 └── README.md
 ```
 
