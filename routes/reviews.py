@@ -5,9 +5,9 @@ from uuid import UUID
 import uuid
 from datetime import datetime
 
-from ..database.database import get_db
-from ..database.models import Review, ReviewCategoryScore, ReviewQuestion, FreightForwarder
-from ..auth.auth import get_current_user_optional
+from database.database import get_db
+from database.models import Review, ReviewCategoryScore, ReviewQuestion, FreightForwarder
+from auth.auth import get_current_user_optional
 
 router = APIRouter(prefix="/api/reviews", tags=["reviews"])
 
