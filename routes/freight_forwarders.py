@@ -15,6 +15,8 @@ class FreightForwarderResponse(BaseModel):
     name: str
     website: Optional[str]
     logo_url: Optional[str]
+    description: Optional[str]  # Keep this field
+    headquarters_country: Optional[str]  # Keep this field
     average_rating: Optional[float] = 0.0
     review_count: Optional[int] = 0
     created_at: datetime
@@ -77,6 +79,8 @@ async def get_freight_forwarders(
                     name=ff.name,
                     website=ff.website,
                     logo_url=ff.logo_url,
+                    description=ff.description,
+                    headquarters_country=ff.headquarters_country,
                     average_rating=avg_rating,
                     review_count=review_count,
                     created_at=ff.created_at
@@ -124,6 +128,8 @@ async def get_freight_forwarder(
         name=freight_forwarder.name,
         website=freight_forwarder.website,
         logo_url=freight_forwarder.logo_url,
+        description=freight_forwarder.description,
+        headquarters_country=freight_forwarder.headquarters_country,
         average_rating=avg_rating,
         review_count=review_count,
         created_at=freight_forwarder.created_at

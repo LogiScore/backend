@@ -66,7 +66,8 @@ class DatabaseMigration:
             print("🔄 Migrating freight_forwarders table...")
             
             # Remove old columns that no longer exist in the new model
-            old_columns = ['description', 'headquarters_country', 'global_rank', 'is_active', 'updated_at']
+            # Keep description and headquarters_country as requested by user
+            old_columns = ['global_rank', 'is_active', 'updated_at']
             
             for column in old_columns:
                 try:
