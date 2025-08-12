@@ -1,8 +1,9 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Text, ForeignKey, UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Text, ForeignKey, UUID, Numeric, JSON
+from sqlalchemy.orm import relationship, hybrid_property
 from sqlalchemy.sql import func
 from database.database import Base
 import uuid
+from datetime import datetime
 
 class User(Base):
     __tablename__ = "users"
@@ -38,16 +39,32 @@ class FreightForwarder(Base):
     name = Column(String(255), nullable=False)
     website = Column(String(255), nullable=True)
     logo_url = Column(Text, nullable=True)
-    description = Column(Text, nullable=True)
-    headquarters_country = Column(String(255), nullable=True)
-    global_rank = Column(Integer, nullable=True)
-    is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Updated model with hybrid properties for calculated ratings
     
     # Relationships
     branches = relationship("Branch", back_populates="freight_forwarder")
     reviews = relationship("Review", back_populates="freight_forwarder")
+    
+    @hybrid_property
+    def average_rating(self):
+        """Calculate average rating from weighted reviews"""
+        if not self.reviews:
+            return 0.0
+        
+        total_weighted_rating = sum(review.weighted_rating or 0 for review in self.reviews if review.weighted_rating is not None)
+        total_weight = sum(review.review_weight or 0 for review in self.reviews if review.review_weight is not None)
+        
+        if total_weight == 0:
+            return 0.0
+        
+        return total_weighted_rating / total_weight
+    
+    @hybrid_property
+    def review_count(self):
+        """Get total number of reviews"""
+        return len(self.reviews) if self.reviews else 0
 
 class Branch(Base):
     __tablename__ = "branches"
@@ -70,17 +87,18 @@ class Review(Base):
     __tablename__ = "reviews"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)  # Changed to nullable for anonymous reviews
     freight_forwarder_id = Column(UUID(as_uuid=True), ForeignKey("freight_forwarders.id"), nullable=False)
     branch_id = Column(UUID(as_uuid=True), ForeignKey("branches.id"), nullable=True)
-    overall_rating = Column(Float, nullable=False)
-    responsiveness_rating = Column(Float, nullable=True)
-    documentation_rating = Column(Float, nullable=True)
-    communication_rating = Column(Float, nullable=True)
-    reliability_rating = Column(Float, nullable=True)
-    cost_effectiveness_rating = Column(Float, nullable=True)
-    review_text = Column(Text, nullable=True)
+    review_type = Column(String(50), default="general")  # Added: general, import, export, domestic, warehousing
     is_anonymous = Column(Boolean, default=False)
+    review_weight = Column(Numeric(3,2), default=1.0)  # Added: 0.5 for anonymous, 1.0 for authenticated
+    aggregate_rating = Column(Numeric(3,2), nullable=True)  # Added: calculated from all question ratings
+    weighted_rating = Column(Numeric(3,2), nullable=True)  # Added: aggregate_rating * review_weight
+    total_questions_rated = Column(Integer, default=0)  # Added: count of questions with ratings > 0
+    # Keep existing fields for backward compatibility
+    overall_rating = Column(Float, nullable=True)  # Changed to nullable, will be calculated
+    review_text = Column(Text, nullable=True)
     is_verified = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -95,13 +113,35 @@ class ReviewCategoryScore(Base):
     __tablename__ = "review_category_scores"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    review_id = Column(UUID(as_uuid=True), ForeignKey("reviews.id"), nullable=False)
-    category = Column(String(100), nullable=False)
-    score = Column(Float, nullable=False)
+    review_id = Column(UUID(as_uuid=True), ForeignKey("reviews.id", ondelete="CASCADE"), nullable=False)
+    category_id = Column(String(100), nullable=False)  # Added: specific category identifier
+    category_name = Column(String(100), nullable=False)  # Added: human-readable category name
+    question_id = Column(String(100), nullable=False)  # Added: specific question identifier
+    question_text = Column(Text, nullable=False)  # Added: the actual question text
+    rating = Column(Integer, nullable=False)  # Changed: 0-4 star rating instead of float score
+    rating_definition = Column(Text, nullable=False)  # Added: what the rating means
+    weight = Column(Numeric(3,2), default=1.0)  # Added: question weight (usually 1.0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Keep existing field for backward compatibility
+    category = Column(String(100), nullable=True)  # Legacy field, can be removed later
+    score = Column(Float, nullable=True)  # Legacy field, can be removed later
     
     # Relationships
     review = relationship("Review", back_populates="category_scores")
+
+class ReviewQuestion(Base):
+    __tablename__ = "review_questions"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    category_id = Column(String(100), nullable=False)
+    category_name = Column(String(100), nullable=False)
+    question_id = Column(String(100), nullable=False, unique=True)
+    question_text = Column(Text, nullable=False)
+    rating_definitions = Column(JSON, nullable=False)  # JSON object with rating definitions
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 class UserSession(Base):
     __tablename__ = "user_sessions"

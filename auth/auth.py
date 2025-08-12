@@ -78,6 +78,35 @@ async def get_current_user(
         raise credentials_exception
     return user
 
+async def get_current_user_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    db: Session = Depends(get_db)
+) -> Optional[dict]:
+    """Get current user from JWT token if provided, otherwise return None (for anonymous reviews)"""
+    if not credentials:
+        return None
+    
+    try:
+        payload = verify_token(credentials.credentials)
+        if payload is None:
+            return None
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            return None
+    except JWTError:
+        return None
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None:
+        return None
+    
+    return {
+        "id": user.id,
+        "email": user.email,
+        "username": user.username,
+        "full_name": user.full_name
+    }
+
 async def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
     """Get current active user"""
     if not current_user.is_active:

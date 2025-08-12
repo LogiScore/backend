@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta
 from typing import Optional
 import logging
+from fastapi.responses import JSONResponse
 
 # Import our modules
 from database.database import get_db, get_engine
@@ -33,11 +34,10 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://logiscore.net",
+        "http://logiscore.net",  # HTTP version
+        "https://logiscore.net",  # HTTPS version
         "https://logiscore-frontend.vercel.app",
         "https://logiscore-frontend-git-main-evaluratenet.vercel.app",
-        "https://logiscore-frontend-git-main-evaluratenet.vercel.app",
-        "https://logiscore-frontend.vercel.app",
         "https://*.vercel.app",  # Allow all Vercel subdomains
         "http://localhost:3000",
         "http://localhost:5173",
@@ -64,7 +64,19 @@ try:
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables created successfully")
 except Exception as e:
+    logger.error(f"Database initialization failed: {e}")
     logger.warning(f"Could not create database tables: {e}")
+
+# Add global exception handler
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    logger.error(f"Global exception handler caught: {exc}")
+    logger.error(f"Request URL: {request.url}")
+    logger.error(f"Request method: {request.method}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error", "error": str(exc)}
+    )
 
 # Include routers
 app.include_router(users.router, prefix="/api/users", tags=["users"])
@@ -78,7 +90,7 @@ async def root():
     """Health check endpoint"""
     return {
         "message": "LogiScore API is running",
-        "version": "1.0.2",
+        "version": "1.0.5",
         "timestamp": datetime.utcnow().isoformat()
     }
 
