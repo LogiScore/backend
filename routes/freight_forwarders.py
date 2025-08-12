@@ -56,11 +56,31 @@ async def get_freight_forwarders(
         
         freight_forwarders = query.offset(skip).limit(limit).all()
         
-        # Convert to response model
+        # Convert to response model with safe attribute access
         result = []
         for ff in freight_forwarders:
             try:
-                response = FreightForwarderResponse.from_orm(ff)
+                # Safely get average_rating and review_count
+                try:
+                    avg_rating = ff.average_rating if hasattr(ff, 'average_rating') else 0.0
+                except Exception:
+                    avg_rating = 0.0
+                
+                try:
+                    review_count = ff.review_count if hasattr(ff, 'review_count') else 0
+                except Exception:
+                    review_count = 0
+                
+                # Create response manually to avoid SQL generation issues
+                response = FreightForwarderResponse(
+                    id=ff.id,
+                    name=ff.name,
+                    website=ff.website,
+                    logo_url=ff.logo_url,
+                    average_rating=avg_rating,
+                    review_count=review_count,
+                    created_at=ff.created_at
+                )
                 result.append(response)
             except Exception as e:
                 # Log the error but continue with other records
@@ -87,7 +107,27 @@ async def get_freight_forwarder(
     if not freight_forwarder:
         raise HTTPException(status_code=404, detail="Freight forwarder not found")
     
-    return FreightForwarderResponse.from_orm(freight_forwarder)
+    # Safely get average_rating and review_count
+    try:
+        avg_rating = freight_forwarder.average_rating if hasattr(freight_forwarder, 'average_rating') else 0.0
+    except Exception:
+        avg_rating = 0.0
+    
+    try:
+        review_count = freight_forwarder.review_count if hasattr(freight_forwarder, 'review_count') else 0
+    except Exception:
+        review_count = 0
+    
+    # Create response manually to avoid SQL generation issues
+    return FreightForwarderResponse(
+        id=freight_forwarder.id,
+        name=freight_forwarder.name,
+        website=freight_forwarder.website,
+        logo_url=freight_forwarder.logo_url,
+        average_rating=avg_rating,
+        review_count=review_count,
+        created_at=freight_forwarder.created_at
+    )
 
 @router.get("/{freight_forwarder_id}/branches", response_model=List[BranchResponse])
 async def get_freight_forwarder_branches(
