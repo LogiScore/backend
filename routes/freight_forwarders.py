@@ -1,14 +1,23 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, HttpUrl
 from typing import Optional, List
 from database.database import get_db
 from database.models import FreightForwarder, Branch
+from auth.auth import get_current_user
+from database.models import User
 
 router = APIRouter()
 
 from datetime import datetime
 from uuid import UUID
+
+class FreightForwarderCreate(BaseModel):
+    name: str
+    website: Optional[str] = None
+    logo_url: Optional[str] = None
+    description: Optional[str] = None
+    headquarters_country: Optional[str] = None
 
 class FreightForwarderResponse(BaseModel):
     id: UUID
@@ -146,4 +155,66 @@ async def get_freight_forwarder_branches(
         Branch.is_active == True
     ).all()
     
-    return [BranchResponse.from_orm(branch) for branch in branches] 
+    return [BranchResponse.from_orm(branch) for branch in branches]
+
+@router.post("/", response_model=FreightForwarderResponse, status_code=status.HTTP_201_CREATED)
+async def create_freight_forwarder(
+    freight_forwarder_data: FreightForwarderCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new freight forwarder"""
+    try:
+        # Check if user has permission to create freight forwarders
+        if current_user.user_type not in ["admin", "shipper"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions to create freight forwarders"
+            )
+        
+        # Check if freight forwarder with same name already exists
+        existing_ff = db.query(FreightForwarder).filter(
+            FreightForwarder.name.ilike(freight_forwarder_data.name)
+        ).first()
+        
+        if existing_ff:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Freight forwarder with name '{freight_forwarder_data.name}' already exists"
+            )
+        
+        # Create new freight forwarder
+        new_freight_forwarder = FreightForwarder(
+            name=freight_forwarder_data.name,
+            website=freight_forwarder_data.website,
+            logo_url=freight_forwarder_data.logo_url,
+            description=freight_forwarder_data.description,
+            headquarters_country=freight_forwarder_data.headquarters_country
+        )
+        
+        db.add(new_freight_forwarder)
+        db.commit()
+        db.refresh(new_freight_forwarder)
+        
+        # Return the created freight forwarder
+        return FreightForwarderResponse(
+            id=new_freight_forwarder.id,
+            name=new_freight_forwarder.name,
+            website=new_freight_forwarder.website,
+            logo_url=new_freight_forwarder.logo_url,
+            description=new_freight_forwarder.description,
+            headquarters_country=new_freight_forwarder.headquarters_country,
+            average_rating=0.0,
+            review_count=0,
+            created_at=new_freight_forwarder.created_at
+        )
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create freight forwarder: {str(e)}"
+        ) 
