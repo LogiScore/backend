@@ -82,7 +82,7 @@ async def global_exception_handler(request, exc):
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(freight_forwarders.router, prefix="/api/freight-forwarders", tags=["freight-forwarders"])
-app.include_router(reviews.router, prefix="/api/reviews", tags=["reviews"])
+app.include_router(reviews.router, prefix="/api/reviews", tags=["reviews"])  # Fixed: removed double prefix
 app.include_router(search.router, prefix="/api/search", tags=["search"])
 app.include_router(subscriptions.router, prefix="/api/subscriptions", tags=["subscriptions"])
 
