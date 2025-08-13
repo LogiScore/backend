@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Union
 from uuid import UUID
 import uuid
 from datetime import datetime
@@ -24,7 +24,7 @@ class CategoryRating(BaseModel):
 
 class ReviewCreate(BaseModel):
     freight_forwarder_id: UUID
-    branch_id: Optional[UUID] = None
+    branch_id: Optional[Union[UUID, str]] = None  # Accept UUID or branch name
     review_type: str = "general"
     is_anonymous: bool = False
     review_weight: float = 1.0
@@ -67,18 +67,47 @@ async def create_review(
             )
         
         # Validate branch if provided
-        if review_data.branch_id:
+        branch_id = review_data.branch_id
+        if branch_id:
             from database.models import Branch
-            branch = db.query(Branch).filter(
-                Branch.id == review_data.branch_id,
-                Branch.freight_forwarder_id == review_data.freight_forwarder_id
-            ).first()
             
-            if not branch:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Branch not found or does not belong to the specified freight forwarder"
-                )
+            # Handle both UUID and branch name
+            if isinstance(branch_id, str) and not branch_id.replace('-', '').replace('_', '').isalnum():
+                # If it's a string that looks like a name (not UUID-like), search by name
+                branch = db.query(Branch).filter(
+                    Branch.name.ilike(branch_id),
+                    Branch.freight_forwarder_id == review_data.freight_forwarder_id
+                ).first()
+                
+                if not branch:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Branch '{branch_id}' not found for this freight forwarder"
+                    )
+                
+                # Update branch_id to actual UUID for database storage
+                branch_id = branch.id
+            else:
+                # Treat as UUID
+                try:
+                    if isinstance(branch_id, str):
+                        branch_id = UUID(branch_id)
+                    
+                    branch = db.query(Branch).filter(
+                        Branch.id == branch_id,
+                        Branch.freight_forwarder_id == review_data.freight_forwarder_id
+                    ).first()
+                    
+                    if not branch:
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Branch not found or does not belong to the specified freight forwarder"
+                        )
+                except ValueError:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Invalid branch_id format. Must be a valid UUID or branch name"
+                    )
         
         # Validate ratings
         if review_data.aggregate_rating < 0 or review_data.aggregate_rating > 4:
@@ -111,7 +140,7 @@ async def create_review(
         # Create the main review record
         review = Review(
             freight_forwarder_id=review_data.freight_forwarder_id,
-            branch_id=review_data.branch_id,
+            branch_id=branch_id,
             user_id=current_user.get("id") if current_user else None,
             review_type=review_data.review_type,
             is_anonymous=review_data.is_anonymous,
