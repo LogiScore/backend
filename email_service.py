@@ -1,12 +1,20 @@
 import os
 import logging
 from typing import Optional
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail, Email, To, Content, HtmlContent
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Conditional SendGrid import
+try:
+    from sendgrid import SendGridAPIClient
+    from sendgrid.helpers.mail import Mail, Email, To, Content, HtmlContent
+    SENDGRID_AVAILABLE = True
+    logger.info("SendGrid module successfully imported")
+except ImportError:
+    SENDGRID_AVAILABLE = False
+    logger.warning("SendGrid module not available. Email sending will be disabled.")
 
 class EmailService:
     def __init__(self):
@@ -16,11 +24,15 @@ class EmailService:
         
         if not self.api_key:
             logger.warning("SENDGRID_API_KEY not found in environment variables. Email sending will be disabled.")
+        elif not SENDGRID_AVAILABLE:
+            logger.warning("SendGrid module not available. Email sending will be disabled.")
+        else:
+            logger.info("Email service initialized with SendGrid")
     
     async def send_verification_code(self, to_email: str, verification_code: str) -> bool:
         """Send verification code email using SendGrid"""
         try:
-            if not self.api_key:
+            if not self.api_key or not SENDGRID_AVAILABLE:
                 # Fallback: log the code to console for development
                 logger.info(f"FALLBACK: Verification code for {to_email}: {verification_code}")
                 return True
@@ -152,7 +164,7 @@ class EmailService:
     async def send_welcome_email(self, to_email: str, full_name: str) -> bool:
         """Send welcome email to new users"""
         try:
-            if not self.api_key:
+            if not self.api_key or not SENDGRID_AVAILABLE:
                 logger.info(f"FALLBACK: Welcome email would be sent to {to_email}")
                 return True
             
