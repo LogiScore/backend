@@ -47,66 +47,145 @@ class ReviewResponse(BaseModel):
     class Config:
         from_attributes = True
 
-@router.post("/", response_model=ReviewResponse)
+@router.post("/", response_model=ReviewResponse, status_code=status.HTTP_201_CREATED)
 async def create_review(
     review_data: ReviewCreate,
     db: Session = Depends(get_db),
     current_user: Optional[dict] = Depends(get_current_user_optional)
 ):
     """Create a new review"""
-    
-    # Validate freight forwarder exists
-    freight_forwarder = db.query(FreightForwarder).filter(
-        FreightForwarder.id == review_data.freight_forwarder_id
-    ).first()
-    
-    if not freight_forwarder:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Freight forwarder not found"
-        )
-    
-    # Create the main review record
-    review = Review(
-        freight_forwarder_id=review_data.freight_forwarder_id,
-        branch_id=review_data.branch_id,
-        user_id=current_user.get("id") if current_user else None,
-        review_type=review_data.review_type,
-        is_anonymous=review_data.is_anonymous,
-        review_weight=review_data.review_weight,
-        aggregate_rating=review_data.aggregate_rating,
-        weighted_rating=review_data.weighted_rating,
-        total_questions_rated=sum(len(cat.questions) for cat in review_data.category_ratings)
-    )
-    
-    db.add(review)
-    db.flush()  # Get the review ID
-    
-    # Create category scores for each question
-    for category in review_data.category_ratings:
-        for question in category.questions:
-            # Get question details from review_questions table
-            question_detail = db.query(ReviewQuestion).filter(
-                ReviewQuestion.question_id == question.question
+    try:
+        # Validate freight forwarder exists
+        freight_forwarder = db.query(FreightForwarder).filter(
+            FreightForwarder.id == review_data.freight_forwarder_id
+        ).first()
+        
+        if not freight_forwarder:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Freight forwarder not found"
+            )
+        
+        # Validate branch if provided
+        if review_data.branch_id:
+            from database.models import Branch
+            branch = db.query(Branch).filter(
+                Branch.id == review_data.branch_id,
+                Branch.freight_forwarder_id == review_data.freight_forwarder_id
             ).first()
             
-            if question_detail:
-                category_score = ReviewCategoryScore(
-                    review_id=review.id,
-                    category_id=category.category,
-                    category_name=question_detail.category_name,
-                    question_id=question.question,
-                    question_text=question_detail.question_text,
-                    rating=question.rating,
-                    rating_definition=question_detail.rating_definitions.get(str(question.rating), ""),
-                    weight=review_data.review_weight
+            if not branch:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Branch not found or does not belong to the specified freight forwarder"
                 )
-                db.add(category_score)
-    
-    db.commit()
-    db.refresh(review)
-    
-    return review
+        
+        # Validate ratings
+        if review_data.aggregate_rating < 0 or review_data.aggregate_rating > 4:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Aggregate rating must be between 0 and 4"
+            )
+        
+        # Validate category ratings
+        if not review_data.category_ratings:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="At least one category rating is required"
+            )
+        
+        for category in review_data.category_ratings:
+            if not category.questions:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Category '{category.category}' must have at least one question"
+                )
+            
+            for question in category.questions:
+                if question.rating < 0 or question.rating > 4:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Question rating must be between 0 and 4, got {question.rating}"
+                    )
+        
+        # Create the main review record
+        review = Review(
+            freight_forwarder_id=review_data.freight_forwarder_id,
+            branch_id=review_data.branch_id,
+            user_id=current_user.get("id") if current_user else None,
+            review_type=review_data.review_type,
+            is_anonymous=review_data.is_anonymous,
+            review_weight=review_data.review_weight,
+            aggregate_rating=review_data.aggregate_rating,
+            weighted_rating=review_data.weighted_rating,
+            total_questions_rated=sum(len(cat.questions) for cat in review_data.category_ratings),
+            is_active=True,
+            is_verified=False
+        )
+        
+        db.add(review)
+        db.flush()  # Get the review ID
+        
+        # Create category scores for each question
+        for category in review_data.category_ratings:
+            for question in category.questions:
+                # Get question details from review_questions table
+                question_detail = db.query(ReviewQuestion).filter(
+                    ReviewQuestion.question_id == question.question
+                ).first()
+                
+                if question_detail:
+                    category_score = ReviewCategoryScore(
+                        review_id=review.id,
+                        category_id=category.category,
+                        category_name=question_detail.category_name,
+                        question_id=question.question,
+                        question_text=question_detail.question_text,
+                        rating=question.rating,
+                        rating_definition=question_detail.rating_definitions.get(str(question.rating), ""),
+                        weight=review_data.review_weight
+                    )
+                    db.add(category_score)
+                else:
+                    # If question not found, create with basic info
+                    category_score = ReviewCategoryScore(
+                        review_id=review.id,
+                        category_id=category.category,
+                        category_name=category.category,
+                        question_id=question.question,
+                        question_text=f"Question {question.question}",
+                        rating=question.rating,
+                        rating_definition="",
+                        weight=review_data.review_weight
+                    )
+                    db.add(category_score)
+        
+        db.commit()
+        db.refresh(review)
+        
+        # Return the created review
+        return ReviewResponse(
+            id=review.id,
+            freight_forwarder_id=review.freight_forwarder_id,
+            branch_id=review.branch_id,
+            review_type=review.review_type,
+            is_anonymous=review.is_anonymous,
+            review_weight=float(review.review_weight) if review.review_weight else 1.0,
+            aggregate_rating=float(review.aggregate_rating) if review.aggregate_rating else 0.0,
+            weighted_rating=float(review.weighted_rating) if review.weighted_rating else 0.0,
+            total_questions_rated=review.total_questions_rated,
+            created_at=review.created_at
+        )
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create review: {str(e)}"
+        )
 
 @router.get("/questions", response_model=List[dict])
 async def get_review_questions(db: Session = Depends(get_db)):
