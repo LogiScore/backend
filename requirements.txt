@@ -23,4 +23,5 @@ sendgrid>=6.10.0
 
 # Utilities
 python-dotenv>=1.0.0
-httpx>=0.25.2 
+httpx>=0.25.2
+pandas>=2.0.0 

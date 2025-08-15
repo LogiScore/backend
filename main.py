@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from database.database import get_db, get_engine
 from database.models import Base
 from auth.auth import get_current_user, create_access_token
-from routes import users, freight_forwarders, reviews, search, subscriptions, auth
+from routes import users, freight_forwarders, reviews, search, subscriptions, auth, locations
 
 # Load environment variables
 load_dotenv()
@@ -85,6 +85,7 @@ app.include_router(freight_forwarders.router, prefix="/api/freight-forwarders", 
 app.include_router(reviews.router, prefix="/api/reviews", tags=["reviews"])  # Fixed: removed double prefix
 app.include_router(search.router, prefix="/api/search", tags=["search"])
 app.include_router(subscriptions.router, prefix="/api/subscriptions", tags=["subscriptions"])
+app.include_router(locations.router, prefix="/api/locations", tags=["locations"])
 
 @app.get("/")
 async def root():
