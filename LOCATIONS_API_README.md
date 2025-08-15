@@ -1,7 +1,7 @@
 # LogiScore Locations API
 
 ## Overview
-The Locations API provides a comprehensive endpoint for retrieving and filtering location data based on the CSV structure: `Location`, `City`, `State`, `Country`, `Region`, and `Subregion`.
+The Locations API provides a comprehensive endpoint for retrieving and filtering location data from a PostgreSQL database with UUID support for the reviews system. The data structure includes: `uuid`, `location_name`, `city`, `state`, `country`, `region`, and `subregion`.
 
 ## Endpoints
 
@@ -36,7 +36,8 @@ GET /api/locations?region=Europe&country=Germany&limit=20
 ```json
 [
   {
-    "id": "new-york-usa",
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "uuid": "550e8400-e29b-41d4-a716-446655440000",
     "name": "New York, NY, USA",
     "city": "New York",
     "state": "NY",
@@ -45,7 +46,8 @@ GET /api/locations?region=Europe&country=Germany&limit=20
     "subregion": "North America"
   },
   {
-    "id": "london-uk",
+    "id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+    "uuid": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
     "name": "London, , UK",
     "city": "London",
     "state": "",
@@ -76,12 +78,42 @@ Get list of available countries.
 }
 ```
 
+### 4. GET /api/locations/{uuid}
+Get a specific location by UUID. Useful for reviews system validation.
+
+**Response:**
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "uuid": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "New York, NY, USA",
+  "city": "New York",
+  "state": "NY",
+  "country": "USA",
+  "region": "Americas",
+  "subregion": "North America"
+}
+```
+
+### 5. GET /api/locations/search/autocomplete
+Autocomplete endpoint for location search with smart ranking.
+
+**Query Parameters:**
+- `q` (required): Search query (minimum 2 characters)
+- `limit` (optional): Maximum results (1-50, default: 10)
+
+**Example:**
+```bash
+GET /api/locations/search/autocomplete?q=lon&limit=5
+```
+
 ## Implementation Details
 
-### Data Loading
-- CSV data is loaded once on application startup for performance
-- Falls back to sample data if `Locations.csv` is not found
-- Automatically handles missing or malformed data
+### Database Integration
+- PostgreSQL database with optimized table structure
+- UUID primary keys for reviews system integration
+- Database indexes for fast searching and filtering
+- Efficient SQL queries with parameterized statements
 
 ### Search Functionality
 - Searches across `Location`, `City`, `State`, and `Country` fields
@@ -93,29 +125,47 @@ Get list of available countries.
 - Country filtering: Partial match (case-insensitive)
 - Filters can be combined with search queries
 
-### ID Generation
-- Unique IDs are generated from city and country combinations
-- Format: `{city}-{country}` (lowercase, hyphenated)
-- Handles special characters and edge cases
+### UUID System
+- Each location has a unique UUID for reviews system integration
+- UUIDs are automatically generated and indexed
+- Consistent with database primary key strategy
+- Enables efficient location lookups in reviews
 
 ### Performance Features
-- Data loaded once on startup, not per request
-- Efficient pandas operations for filtering
+- Database indexes for fast queries
+- Efficient SQL operations with parameterized queries
 - Configurable result limits (1-1000)
 - Graceful error handling and logging
+- Scalable to millions of locations
 
 ## File Structure
 
 ```
 routes/
-├── locations.py          # Main locations router
+├── locations.py          # Main locations router (database-based)
 ├── __init__.py
 └── ... (other routes)
 
-Locations.csv             # Location data file
-test_locations.py         # Test script for endpoint
-LOCATIONS_API_README.md   # This documentation
+migrate_locations_to_db.py    # Migration script for CSV to database
+run_locations_migration.py    # Simple migration runner
+test_locations.py             # Test script for database endpoint
+LOCATIONS_API_README.md       # This documentation
 ```
+
+## Migration from CSV to Database
+
+To convert your existing CSV data to the database:
+
+1. **Run the migration script:**
+   ```bash
+   python run_locations_migration.py
+   ```
+
+2. **The script will:**
+   - Create the `locations` table with UUIDs
+   - Import all CSV data with proper indexing
+   - Verify data integrity and UUID uniqueness
+   - Enable the new database-based API
 
 ## CSV Format Requirements
 
