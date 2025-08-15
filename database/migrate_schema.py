@@ -101,6 +101,8 @@ class DatabaseMigration:
             
             # Add new columns for the comprehensive review system
             new_columns = [
+                ("city", "VARCHAR(100)"),
+                ("country", "VARCHAR(100)"),
                 ("review_type", "VARCHAR(50) DEFAULT 'general'"),
                 ("review_weight", "NUMERIC(3,2) DEFAULT 1.0"),
                 ("aggregate_rating", "NUMERIC(3,2)"),

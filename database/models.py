@@ -93,6 +93,8 @@ class Review(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)  # Changed to nullable for anonymous reviews
     freight_forwarder_id = Column(UUID(as_uuid=True), ForeignKey("freight_forwarders.id"), nullable=False)
     branch_id = Column(UUID(as_uuid=True), ForeignKey("branches.id"), nullable=True)
+    city = Column(String(100), nullable=True)  # Added: city from branch for easier querying
+    country = Column(String(100), nullable=True)  # Added: country from branch for easier querying
     review_type = Column(String(50), default="general")  # Added: general, import, export, domestic, warehousing
     is_anonymous = Column(Boolean, default=False)
     review_weight = Column(Numeric(3,2), default=1.0)  # Added: 0.5 for anonymous, 1.0 for authenticated
