@@ -75,10 +75,11 @@ class Branch(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     freight_forwarder_id = Column(UUID(as_uuid=True), ForeignKey("freight_forwarders.id"), nullable=False)
     name = Column(String(255), nullable=False)
-    location = Column(String(255), nullable=False)
+    city = Column(String(100), nullable=True)
+    country = Column(String(100), nullable=True)
     address = Column(Text, nullable=True)
-    phone = Column(String(100), nullable=True)
-    email = Column(String(255), nullable=True)
+    contact_email = Column(String(255), nullable=True)
+    contact_phone = Column(String(50), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -102,7 +103,6 @@ class Review(Base):
     weighted_rating = Column(Numeric(3,2), nullable=True)  # Added: aggregate_rating * review_weight
     total_questions_rated = Column(Integer, default=0)  # Added: count of questions with ratings > 0
     # Keep existing fields for backward compatibility
-    overall_rating = Column(Float, nullable=True)  # Changed to nullable, will be calculated
     review_text = Column(Text, nullable=True)
     is_verified = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
