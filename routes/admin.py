@@ -232,8 +232,8 @@ async def get_reviews(
                 freight_forwarder_name=review.freight_forwarder.name,
                 branch_name=review.branch.name if review.branch else None,
                 reviewer_name=review.user.username or "Anonymous",
-                rating=review.aggregate_rating or review.overall_rating or 0.0,
-                comment=review.review_text or "",
+                rating=review.aggregate_rating or 0.0,
+                comment="",  # review_text field removed from database
                 status="active" if review.is_active else "inactive",
                 created_at=review.created_at.isoformat() if review.created_at else None
             )

@@ -103,7 +103,6 @@ class Review(Base):
     weighted_rating = Column(Numeric(3,2), nullable=True)  # Added: aggregate_rating * review_weight
     total_questions_rated = Column(Integer, default=0)  # Added: count of questions with ratings > 0
     # Keep existing fields for backward compatibility
-    review_text = Column(Text, nullable=True)
     is_verified = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
