@@ -36,10 +36,11 @@ class FreightForwarderResponse(BaseModel):
 class BranchResponse(BaseModel):
     id: str
     name: str
-    location: str
+    city: Optional[str]
+    country: Optional[str]
     address: Optional[str]
-    phone: Optional[str]
-    email: Optional[str]
+    contact_email: Optional[str]
+    contact_phone: Optional[str]
     is_active: bool
 
     class Config:
