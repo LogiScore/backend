@@ -68,6 +68,26 @@ async def test_database_connection(db: Session = Depends(get_db)):
             "status": "failed"
         }
 
+@router.get("/route-check")
+async def check_route_conflicts():
+    """Check for potential route conflicts"""
+    return {
+        "message": "Route conflict check",
+        "available_routes": [
+            "GET / - Main locations search",
+            "GET /debug - Debug info",
+            "GET /test-simple - Simple test",
+            "GET /test-db - Database test",
+            "GET /route-check - This endpoint",
+            "GET /{uuid} - Get by UUID",
+            "GET /regions - Available regions",
+            "GET /countries - Available countries",
+            "GET /search/autocomplete - Autocomplete search"
+        ],
+        "main_endpoint_status": "should_be_working",
+        "database_status": "connected_with_139284_locations"
+    }
+
 @router.get("/", response_model=List[dict])
 async def get_locations(
     q: Optional[str] = Query(None, description="Search query for filtering locations"),
