@@ -10,6 +10,21 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+@router.get("/debug")
+async def debug_locations():
+    """Debug endpoint to verify locations router is working"""
+    return {
+        "message": "Locations router is working",
+        "endpoints": [
+            "GET / - Main locations search",
+            "GET /{uuid} - Get by UUID", 
+            "GET /regions - Available regions",
+            "GET /countries - Available countries",
+            "GET /search/autocomplete - Autocomplete search"
+        ],
+        "status": "ready"
+    }
+
 @router.get("/", response_model=List[dict])
 async def get_locations(
     q: Optional[str] = Query(None, description="Search query for filtering locations"),
@@ -26,6 +41,8 @@ async def get_locations(
     - **region**: Filter by specific region
     - **country**: Filter by specific country
     """
+    logger.info(f"GET /api/locations called with q={q}, limit={limit}, region={region}, country={country}")
+    
     try:
         # Build the base query
         base_query = """
