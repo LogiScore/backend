@@ -36,6 +36,38 @@ async def test_simple_locations():
         ]
     }
 
+@router.get("/test-db")
+async def test_database_connection(db: Session = Depends(get_db)):
+    """Test database connection and table access"""
+    try:
+        # Test basic connection
+        result = db.execute(text("SELECT 1"))
+        connection_test = result.scalar()
+        
+        # Test locations table access
+        result = db.execute(text('SELECT COUNT(*) FROM locations'))
+        table_count = result.scalar()
+        
+        # Test sample data
+        result = db.execute(text('SELECT "UUID", "City", "Country" FROM locations LIMIT 3'))
+        sample_data = [{"uuid": row.UUID, "city": row.City, "country": row.Country} for row in result.fetchall()]
+        
+        return {
+            "message": "Database connection successful",
+            "connection_test": connection_test,
+            "locations_count": table_count,
+            "sample_data": sample_data,
+            "status": "connected"
+        }
+        
+    except Exception as e:
+        logger.error(f"Database connection test failed: {e}")
+        return {
+            "message": "Database connection failed",
+            "error": str(e),
+            "status": "failed"
+        }
+
 @router.get("/", response_model=List[dict])
 async def get_locations(
     q: Optional[str] = Query(None, description="Search query for filtering locations"),
