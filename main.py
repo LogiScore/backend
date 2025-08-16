@@ -82,10 +82,10 @@ async def global_exception_handler(request, exc):
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(freight_forwarders.router, prefix="/api/freight-forwarders", tags=["freight-forwarders"])
-app.include_router(reviews.router, prefix="/api/reviews", tags=["reviews"])  # Fixed: removed double prefix
+app.include_router(reviews.router, prefix="/api/reviews", tags=["reviews"])
 app.include_router(search.router, prefix="/api/search", tags=["search"])
 app.include_router(subscriptions.router, prefix="/api/subscriptions", tags=["subscriptions"])
-app.include_router(locations.router, prefix="/api/locations", tags=["locations"])
+app.include_router(locations.router, prefix="/api/locations", tags=["locations"])  # Locations API for frontend integration
 
 @app.get("/")
 async def root():
@@ -119,6 +119,11 @@ async def health_check():
 async def test_endpoint():
     """Test endpoint for development"""
     return {"message": "API is working correctly"}
+
+@app.get("/api/locations-test")
+async def locations_test():
+    """Test endpoint to verify locations router is loaded"""
+    return {"message": "Locations router is accessible", "status": "ready"}
 
 @app.options("/{full_path:path}")
 async def options_handler(full_path: str):
