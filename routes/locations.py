@@ -25,6 +25,17 @@ async def debug_locations():
         "status": "ready"
     }
 
+@router.get("/test-simple")
+async def test_simple_locations():
+    """Simple test endpoint without database dependency"""
+    return {
+        "message": "Simple locations endpoint working",
+        "sample_data": [
+            {"id": "test-1", "name": "Test Location 1", "city": "Test City"},
+            {"id": "test-2", "name": "Test Location 2", "city": "Test City 2"}
+        ]
+    }
+
 @router.get("/", response_model=List[dict])
 async def get_locations(
     q: Optional[str] = Query(None, description="Search query for filtering locations"),
