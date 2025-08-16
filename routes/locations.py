@@ -29,7 +29,7 @@ async def get_locations(
     try:
         # Build the base query
         base_query = """
-        SELECT uuid, location_name, city, state, country, region, subregion
+        SELECT "UUID", "Location", "City", "State", "Country", "Region", "Subregion"
         FROM locations
         WHERE 1=1
         """
@@ -40,10 +40,10 @@ async def get_locations(
         if q and q.strip():
             search_query = """
             AND (
-                LOWER(location_name) LIKE LOWER(:search_query) OR
-                LOWER(city) LIKE LOWER(:search_query) OR
-                LOWER(state) LIKE LOWER(:search_query) OR
-                LOWER(country) LIKE LOWER(:search_query)
+                LOWER("Location") LIKE LOWER(:search_query) OR
+                LOWER("City") LIKE LOWER(:search_query) OR
+                LOWER("State") LIKE LOWER(:search_query) OR
+                LOWER("Country") LIKE LOWER(:search_query)
             )
             """
             base_query += search_query
@@ -51,18 +51,18 @@ async def get_locations(
         
         # Add region filter
         if region and region.strip():
-            region_filter = "AND LOWER(region) = LOWER(:region)"
+            region_filter = "AND LOWER(\"Region\") = LOWER(:region)"
             base_query += region_filter
             params['region'] = region.strip()
         
         # Add country filter
         if country and country.strip():
-            country_filter = "AND LOWER(country) LIKE LOWER(:country)"
+            country_filter = "AND LOWER(\"Country\") LIKE LOWER(:country)"
             base_query += country_filter
             params['country'] = f"%{country.strip()}%"
         
         # Add ordering and limit
-        base_query += " ORDER BY city, country LIMIT :limit"
+        base_query += " ORDER BY \"City\", \"Country\" LIMIT :limit"
         params['limit'] = limit
         
         # Execute query
@@ -73,14 +73,14 @@ async def get_locations(
         locations = []
         for row in rows:
             locations.append({
-                "id": str(row.uuid),  # Use UUID as ID for reviews system
-                "uuid": str(row.uuid),  # Also include UUID field
-                "name": row.location_name if row.location_name else f"{row.city}, {row.state}, {row.country}".strip(', '),
-                "city": row.city if row.city else "",
-                "state": row.state if row.state else "",
-                "country": row.country if row.country else "",
-                "region": row.region if row.region else "",
-                "subregion": row.subregion if row.subregion else ""
+                "id": str(row.UUID),  # Use UUID as ID for reviews system
+                "uuid": str(row.UUID),  # Also include UUID field
+                "name": row.Location if row.Location else f"{row.City}, {row.State}, {row.Country}".strip(', '),
+                "city": row.City if row.City else "",
+                "state": row.State if row.State else "",
+                "country": row.Country if row.Country else "",
+                "region": row.Region if row.Region else "",
+                "subregion": row.Subregion if row.Subregion else ""
             })
         
         logger.info(f"Returning {len(locations)} locations (query: {q}, region: {region}, country: {country})")
@@ -101,9 +101,9 @@ async def get_location_by_uuid(
     """
     try:
         query = """
-        SELECT uuid, location_name, city, state, country, region, subregion
+        SELECT "UUID", "Location", "City", "State", "Country", "Region", "Subregion"
         FROM locations
-        WHERE uuid = :uuid
+        WHERE "UUID" = :uuid
         """
         
         result = db.execute(text(query), {"uuid": location_uuid})
@@ -113,14 +113,14 @@ async def get_location_by_uuid(
             raise HTTPException(status_code=404, detail="Location not found")
         
         location = {
-            "id": str(row.uuid),
-            "uuid": str(row.uuid),
-            "name": row.location_name if row.location_name else f"{row.city}, {row.state}, {row.country}".strip(', '),
-            "city": row.city if row.city else "",
-            "state": row.state if row.state else "",
-            "country": row.country if row.country else "",
-            "region": row.region if row.region else "",
-            "subregion": row.subregion if row.subregion else ""
+            "id": str(row.UUID),
+            "uuid": str(row.UUID),
+            "name": row.Location if row.Location else f"{row.City}, {row.State}, {row.Country}".strip(', '),
+            "city": row.City if row.City else "",
+            "state": row.State if row.State else "",
+            "country": row.Country if row.Country else "",
+            "region": row.Region if row.Region else "",
+            "subregion": row.Subregion if row.Subregion else ""
         }
         
         return location
@@ -136,14 +136,14 @@ async def get_regions(db: Session = Depends(get_db)):
     """Get list of available regions"""
     try:
         query = """
-        SELECT DISTINCT region 
+        SELECT DISTINCT "Region" 
         FROM locations 
-        WHERE region != '' AND region IS NOT NULL
-        ORDER BY region
+        WHERE "Region" != '' AND "Region" IS NOT NULL
+        ORDER BY "Region"
         """
         
         result = db.execute(text(query))
-        regions = [row.region for row in result.fetchall()]
+        regions = [row.Region for row in result.fetchall()]
         
         return {"regions": regions}
         
@@ -156,14 +156,14 @@ async def get_countries(db: Session = Depends(get_db)):
     """Get list of available countries"""
     try:
         query = """
-        SELECT DISTINCT country 
+        SELECT DISTINCT "Country" 
         FROM locations 
-        WHERE country != '' AND country IS NOT NULL
-        ORDER BY country
+        WHERE "Country" != '' AND "Country" IS NOT NULL
+        ORDER BY "Country"
         """
         
         result = db.execute(text(query))
-        countries = [row.country for row in result.fetchall()]
+        countries = [row.Country for row in result.fetchall()]
         
         return {"countries": countries}
         
@@ -183,19 +183,19 @@ async def search_autocomplete(
     """
     try:
         query = """
-        SELECT uuid, location_name, city, state, country
+        SELECT "UUID", "Location", "City", "State", "Country"
         FROM locations
         WHERE (
-            LOWER(city) LIKE LOWER(:search_query) OR
-            LOWER(location_name) LIKE LOWER(:search_query)
+            LOWER("City") LIKE LOWER(:search_query) OR
+            LOWER("Location") LIKE LOWER(:search_query)
         )
         ORDER BY 
             CASE 
-                WHEN LOWER(city) = LOWER(:exact_query) THEN 1
-                WHEN LOWER(city) LIKE LOWER(:exact_query) || '%' THEN 2
+                WHEN LOWER("City") = LOWER(:exact_query) THEN 1
+                WHEN LOWER("City") LIKE LOWER(:exact_query) || '%' THEN 2
                 ELSE 3
             END,
-            city, country
+            "City", "Country"
         LIMIT :limit
         """
         
@@ -211,12 +211,12 @@ async def search_autocomplete(
         locations = []
         for row in rows:
             locations.append({
-                "id": str(row.uuid),
-                "uuid": str(row.uuid),
-                "name": row.location_name if row.location_name else f"{row.city}, {row.state}, {row.country}".strip(', '),
-                "city": row.city if row.city else "",
-                "state": row.state if row.state else "",
-                "country": row.country if row.country else ""
+                "id": str(row.UUID),
+                "uuid": str(row.UUID),
+                "name": row.Location if row.Location else f"{row.City}, {row.State}, {row.Country}".strip(', '),
+                "city": row.City if row.City else "",
+                "state": row.State if row.State else "",
+                "country": row.Country if row.Country else ""
             })
         
         return locations
