@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional, Union
 from uuid import UUID
 import uuid
+import logging
 from datetime import datetime
 
 from database.database import get_db
@@ -10,6 +11,7 @@ from database.models import Review, ReviewCategoryScore, ReviewQuestion, Freight
 from auth.auth import get_current_user_optional
 
 router = APIRouter(tags=["reviews"])
+logger = logging.getLogger(__name__)
 
 # Pydantic models for request/response
 from pydantic import BaseModel
@@ -24,7 +26,7 @@ class CategoryRating(BaseModel):
 
 class ReviewCreate(BaseModel):
     freight_forwarder_id: UUID
-    branch_id: Optional[Union[UUID, str]] = None  # Accept UUID or branch name
+    location_id: Union[UUID, str]  # Required: location UUID from locations table
     review_type: str = "general"
     is_anonymous: bool = False
     review_weight: float = 1.0
@@ -35,7 +37,9 @@ class ReviewCreate(BaseModel):
 class ReviewResponse(BaseModel):
     id: UUID
     freight_forwarder_id: UUID
-    branch_id: Optional[UUID]
+    location_id: UUID
+    city: Optional[str]
+    country: Optional[str]
     review_type: str
     is_anonymous: bool
     review_weight: float
@@ -66,48 +70,40 @@ async def create_review(
                 detail="Freight forwarder not found"
             )
         
-        # Validate branch if provided
-        branch_id = review_data.branch_id
-        if branch_id:
-            from database.models import Branch
+                # Validate location and extract city/country
+        city = None
+        country = None
+        
+        try:
+            # Query the locations table to get city and country
+            from sqlalchemy import text
+            location_query = text("""
+                SELECT "City", "Country" 
+                FROM locations 
+                WHERE "UUID" = :location_uuid
+            """)
             
-            # Handle both UUID and branch name
-            if isinstance(branch_id, str) and not branch_id.replace('-', '').replace('_', '').isalnum():
-                # If it's a string that looks like a name (not UUID-like), search by name
-                branch = db.query(Branch).filter(
-                    Branch.name.ilike(branch_id),
-                    Branch.freight_forwarder_id == review_data.freight_forwarder_id
-                ).first()
-                
-                if not branch:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail=f"Branch '{branch_id}' not found for this freight forwarder"
-                    )
-                
-                # Update branch_id to actual UUID for database storage
-                branch_id = branch.id
-            else:
-                # Treat as UUID
-                try:
-                    if isinstance(branch_id, str):
-                        branch_id = UUID(branch_id)
-                    
-                    branch = db.query(Branch).filter(
-                        Branch.id == branch_id,
-                        Branch.freight_forwarder_id == review_data.freight_forwarder_id
-                    ).first()
-                    
-                    if not branch:
-                        raise HTTPException(
-                            status_code=status.HTTP_404_NOT_FOUND,
-                            detail="Branch not found or does not belong to the specified freight forwarder"
-                        )
-                except ValueError:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Invalid branch_id format. Must be a valid UUID or branch name"
-                    )
+            result = db.execute(location_query, {"location_uuid": review_data.location_id})
+            location_data = result.fetchone()
+            
+            if not location_data:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Location not found"
+                )
+            
+            # Extract city and country from location data
+            city = location_data[0] if location_data[0] else None
+            country = location_data[1] if location_data[1] else None
+            
+            logger.info(f"Location found: City={city}, Country={country}")
+            
+        except Exception as e:
+            logger.error(f"Error querying location: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid location_id format. Must be a valid UUID"
+            )
         
         # Validate ratings
         if review_data.aggregate_rating < 0 or review_data.aggregate_rating > 4:
@@ -140,7 +136,9 @@ async def create_review(
         # Create the main review record
         review = Review(
             freight_forwarder_id=review_data.freight_forwarder_id,
-            branch_id=branch_id,
+            branch_id=None,  # No longer used
+            city=city,
+            country=country,
             user_id=current_user.get("id") if current_user else None,
             review_type=review_data.review_type,
             is_anonymous=review_data.is_anonymous,
