@@ -243,7 +243,7 @@ async def create_review(
                         )
                         db.add(category_score)
             
-            logger.info(f"Category scores created successfully for review {review.id}")
+            logger.info(f"Category scores created successfully for review {review.id} with category and score fields set")
             
         except Exception as e:
             logger.error(f"Error creating category scores: {e}")
