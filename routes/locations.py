@@ -22,7 +22,9 @@ async def debug_locations():
             "GET /countries - Available countries",
             "GET /search/autocomplete - Autocomplete search"
         ],
-        "status": "ready"
+        "status": "ready",
+        "router_prefix": "/api/locations",
+        "main_route_defined": True
     }
 
 @router.get("/test-simple")
@@ -96,6 +98,9 @@ async def get_locations(
     country: Optional[str] = Query(None, description="Filter by country code or name"),
     db: Session = Depends(get_db)
 ):
+    """
+    Main locations endpoint - GET /api/locations
+    """
     logger.info(f"GET /api/locations called with q={q}, limit={limit}, region={region}, country={country}")
     logger.info(f"Database session: {db is not None}")
     

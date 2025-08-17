@@ -125,6 +125,17 @@ async def locations_test():
     """Test endpoint to verify locations router is loaded"""
     return {"message": "Locations router is accessible", "status": "ready"}
 
+@app.get("/api/locations-simple")
+async def locations_simple():
+    """Simple test endpoint directly in main.py"""
+    return {
+        "message": "Direct locations endpoint working",
+        "data": [
+            {"id": "test-1", "name": "Test Location 1", "city": "Test City"},
+            {"id": "test-2", "name": "Test Location 2", "city": "Test City 2"}
+        ]
+    }
+
 @app.options("/{full_path:path}")
 async def options_handler(full_path: str):
     """Handle CORS preflight requests"""
