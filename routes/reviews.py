@@ -374,7 +374,113 @@ async def test_locations(db: Session = Depends(get_db)):
         logger.error(f"Error in test_locations: {e}")
         return {"error": str(e)}
 
+@router.post("/test/create-minimal")
+async def test_create_minimal_review(db: Session = Depends(get_db)):
+    """Test endpoint to create a minimal review and identify database issues"""
+    try:
+        from sqlalchemy import text
+        
+        # First, let's check what freight forwarders exist
+        ff_query = text("SELECT id FROM freight_forwarders LIMIT 1")
+        ff_result = db.execute(ff_query)
+        ff_data = ff_result.fetchone()
+        
+        if not ff_data:
+            return {"error": "No freight forwarders found in database"}
+        
+        freight_forwarder_id = ff_data[0]
+        
+        # Try to create a minimal review
+        review_query = text("""
+            INSERT INTO reviews (
+                freight_forwarder_id, 
+                review_type, 
+                is_anonymous, 
+                review_weight, 
+                aggregate_rating, 
+                weighted_rating, 
+                total_questions_rated,
+                is_active,
+                is_verified
+            ) VALUES (
+                :ff_id, 'test', true, 1.0, 4.0, 4.0, 1, true, false
+            ) RETURNING id
+        """)
+        
+        result = db.execute(review_query, {"ff_id": freight_forwarder_id})
+        review_id = result.scalar()
+        
+        # Clean up the test review
+        cleanup_query = text("DELETE FROM reviews WHERE id = :review_id")
+        db.execute(cleanup_query, {"review_id": review_id})
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": "Minimal review created and cleaned up successfully",
+            "test_review_id": str(review_id),
+            "freight_forwarder_id": str(freight_forwarder_id)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in test_create_minimal_review: {e}")
+        db.rollback()
+        return {"error": str(e), "type": type(e).__name__}
+
 @router.get("/ping")
 async def ping():
     """Simple ping endpoint to test if reviews router is working"""
-    return {"message": "Reviews router is working", "status": "ok"} 
+    return {"message": "Reviews router is working", "status": "ok"}
+
+@router.get("/debug/schema")
+async def debug_schema(db: Session = Depends(get_db)):
+    """Debug endpoint to check database schema for reviews table"""
+    try:
+        from sqlalchemy import text
+        
+        # Check reviews table structure
+        schema_query = text("""
+            SELECT column_name, data_type, is_nullable, column_default
+            FROM information_schema.columns 
+            WHERE table_name = 'reviews'
+            ORDER BY ordinal_position
+        """)
+        
+        result = db.execute(schema_query)
+        columns = result.fetchall()
+        
+        # Check constraints
+        constraint_query = text("""
+            SELECT constraint_name, constraint_type, column_name
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.constraint_column_usage ccu 
+            ON tc.constraint_name = ccu.constraint_name
+            WHERE tc.table_name = 'reviews'
+        """)
+        
+        constraint_result = db.execute(constraint_query)
+        constraints = constraint_result.fetchall()
+        
+        return {
+            "table": "reviews",
+            "columns": [
+                {
+                    "name": col[0],
+                    "type": col[1],
+                    "nullable": col[2],
+                    "default": col[3]
+                }
+                for col in columns
+            ],
+            "constraints": [
+                {
+                    "name": const[0],
+                    "type": const[1],
+                    "column": const[2]
+                }
+                for const in constraints
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Error in debug_schema: {e}")
+        return {"error": str(e)} 
