@@ -192,18 +192,34 @@ async def get_locations(
         
         params = {}
         
-        # Add search filter
+        # Add search filter with normalization - get_locations function
         if q and q.strip():
+            if len(q.strip()) < 4:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Search query must be at least 4 characters long"
+                )
+            
+            # Normalize the search query
+            normalized_query = normalize_location_text(q.strip())
+            logger.info(f"Original query: '{q.strip()}', Normalized: '{normalized_query}'")
+            
+            # Search in both original and normalized text
             search_query = """
             AND (
                 LOWER("Location") LIKE LOWER(:search_query) OR
                 LOWER("City") LIKE LOWER(:search_query) OR
                 LOWER("State") LIKE LOWER(:search_query) OR
-                LOWER("Country") LIKE LOWER(:search_query)
+                LOWER("Country") LIKE LOWER(:search_query) OR
+                LOWER("Location") LIKE LOWER(:normalized_query) OR
+                LOWER("City") LIKE LOWER(:normalized_query) OR
+                LOWER("State") LIKE LOWER(:normalized_query) OR
+                LOWER("Country") LIKE LOWER(:normalized_query)
             )
             """
             base_query += search_query
             params['search_query'] = f"%{q.strip()}%"
+            params['normalized_query'] = f"%{normalized_query}%"
         
         # Add region filter
         if region and region.strip():
@@ -431,18 +447,34 @@ async def get_total_count(
         
         params = {}
         
-        # Add search filter
+        # Add search filter with normalization - get_total_count function
         if q and q.strip():
+            if len(q.strip()) < 4:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Search query must be at least 4 characters long"
+                )
+            
+            # Normalize the search query
+            normalized_query = normalize_location_text(q.strip())
+            logger.info(f"Total count - Original query: '{q.strip()}', Normalized: '{normalized_query}'")
+            
+            # Search in both original and normalized text
             search_query = """
             AND (
                 LOWER("Location") LIKE LOWER(:search_query) OR
                 LOWER("City") LIKE LOWER(:search_query) OR
                 LOWER("State") LIKE LOWER(:search_query) OR
-                LOWER("Country") LIKE LOWER(:search_query)
+                LOWER("Country") LIKE LOWER(:search_query) OR
+                LOWER("Location") LIKE LOWER(:normalized_query) OR
+                LOWER("City") LIKE LOWER(:normalized_query) OR
+                LOWER("State") LIKE LOWER(:normalized_query) OR
+                LOWER("Country") LIKE LOWER(:normalized_query)
             )
             """
             base_query += search_query
             params['search_query'] = f"%{q.strip()}%"
+            params['normalized_query'] = f"%{normalized_query}%"
         
         # Add region filter
         if region and region.strip():
