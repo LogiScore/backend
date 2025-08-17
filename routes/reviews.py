@@ -162,7 +162,28 @@ async def create_review(
             # Use the location UUID as branch_id to maintain database compatibility
             location_uuid = None
             if location_data and location_data[0]:  # location_data[0] is the UUID
-                location_uuid = location_data[0]
+                # Convert the location string to a proper UUID format
+                location_string = str(location_data[0])
+                try:
+                    # If it's already a valid UUID, use it
+                    if len(location_string) == 36 and '-' in location_string:
+                        location_uuid = UUID(location_string)
+                    else:
+                        # Convert alphanumeric string to UUID format
+                        # Pad with zeros and add hyphens to make it UUID-compliant
+                        padded_string = location_string.ljust(32, '0')
+                        uuid_string = f"{padded_string[:8]}-{padded_string[8:12]}-{padded_string[12:16]}-{padded_string[16:20]}-{padded_string[20:32]}"
+                        location_uuid = UUID(uuid_string)
+                        logger.info(f"Converted location string '{location_string}' to UUID: {location_uuid}")
+                except ValueError as e:
+                    logger.error(f"Error converting location string to UUID: {e}")
+                    # Fallback: generate a new UUID based on the location string
+                    import hashlib
+                    hash_object = hashlib.md5(location_string.encode())
+                    hash_hex = hash_object.hexdigest()
+                    uuid_string = f"{hash_hex[:8]}-{hash_hex[8:12]}-{hash_hex[12:16]}-{hash_hex[16:20]}-{hash_hex[20:32]}"
+                    location_uuid = UUID(uuid_string)
+                    logger.info(f"Generated UUID from hash for location '{location_string}': {location_uuid}")
             
             review = Review(
                 freight_forwarder_id=review_data.freight_forwarder_id,
