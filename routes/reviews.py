@@ -74,30 +74,49 @@ async def create_review(
         city = None
         country = None
         
+        logger.info(f"Validating location_id: {review_data.location_id} (type: {type(review_data.location_id)})")
+        
         try:
             # Query the locations table to get city and country
             from sqlalchemy import text
-            location_query = text("""
-                SELECT "City", "Country" 
+            
+            # First, let's check if the location exists and get some debug info
+            debug_query = text("""
+                SELECT "UUID", "Location", "City", "Country", "Region"
                 FROM locations 
                 WHERE "UUID" = :location_uuid
             """)
             
-            result = db.execute(location_query, {"location_uuid": review_data.location_id})
+            result = db.execute(debug_query, {"location_uuid": review_data.location_id})
             location_data = result.fetchone()
             
             if not location_data:
+                # Let's also check what locations are available for debugging
+                sample_query = text("""
+                    SELECT "UUID", "Location", "City", "Country" 
+                    FROM locations 
+                    LIMIT 5
+                """)
+                sample_result = db.execute(sample_query)
+                sample_locations = sample_result.fetchall()
+                
+                logger.error(f"Location not found. Sample locations in DB: {sample_locations}")
+                logger.error(f"Looking for UUID: {review_data.location_id}")
+                
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Location not found"
+                    detail=f"Location not found with UUID: {review_data.location_id}"
                 )
             
             # Extract city and country from location data
-            city = location_data[0] if location_data[0] else None
-            country = location_data[1] if location_data[1] else None
+            city = location_data[2] if location_data[2] else None  # City is at index 2
+            country = location_data[3] if location_data[3] else None  # Country is at index 3
             
-            logger.info(f"Location found: City={city}, Country={country}")
+            logger.info(f"Location found: UUID={location_data[0]}, Location={location_data[1]}, City={city}, Country={country}")
             
+        except HTTPException:
+            # Re-raise HTTP exceptions as-is
+            raise
         except Exception as e:
             logger.error(f"Error querying location: {e}")
             raise HTTPException(
@@ -194,7 +213,9 @@ async def create_review(
         return ReviewResponse(
             id=review.id,
             freight_forwarder_id=review.freight_forwarder_id,
-            branch_id=review.branch_id,
+            location_id=review_data.location_id,  # Use the location_id from the request
+            city=city,
+            country=country,
             review_type=review.review_type,
             is_anonymous=review.is_anonymous,
             review_weight=float(review.review_weight) if review.review_weight else 1.0,
@@ -269,3 +290,41 @@ async def get_review(
         )
     
     return review 
+
+@router.get("/debug/locations")
+async def debug_locations(db: Session = Depends(get_db)):
+    """Debug endpoint to check locations table"""
+    try:
+        from sqlalchemy import text
+        
+        # Get sample locations
+        query = text("""
+            SELECT "UUID", "Location", "City", "Country", "Region"
+            FROM locations 
+            LIMIT 10
+        """)
+        
+        result = db.execute(query)
+        locations = result.fetchall()
+        
+        # Get total count
+        count_query = text("SELECT COUNT(*) FROM locations")
+        count_result = db.execute(count_query)
+        total_count = count_result.scalar()
+        
+        return {
+            "total_locations": total_count,
+            "sample_locations": [
+                {
+                    "uuid": str(loc[0]),
+                    "location": str(loc[1]) if loc[1] else "",
+                    "city": str(loc[2]) if loc[2] else "",
+                    "country": str(loc[3]) if loc[3] else "",
+                    "region": str(loc[4]) if loc[4] else ""
+                }
+                for loc in locations
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Error in debug_locations: {e}")
+        return {"error": str(e)} 
