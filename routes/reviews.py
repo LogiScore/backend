@@ -431,6 +431,62 @@ async def test_create_minimal_review(db: Session = Depends(get_db)):
         db.rollback()
         return {"error": str(e), "type": type(e).__name__}
 
+@router.post("/test/create-simple")
+async def test_create_simple_review(db: Session = Depends(get_db)):
+    """Test endpoint to create a simple review and see exact database errors"""
+    try:
+        from sqlalchemy import text
+        
+        # First, let's check what freight forwarders exist
+        ff_query = text("SELECT id FROM freight_forwarders LIMIT 1")
+        ff_result = db.execute(ff_query)
+        ff_data = ff_result.fetchone()
+        
+        if not ff_data:
+            return {"error": "No freight forwarders found in database"}
+        
+        freight_forwarder_id = ff_data[0]
+        
+        # Try to create a minimal review with NULL branch_id
+        review_query = text("""
+            INSERT INTO reviews (
+                freight_forwarder_id, 
+                branch_id,
+                city,
+                country,
+                review_type, 
+                is_anonymous, 
+                review_weight, 
+                aggregate_rating, 
+                weighted_rating, 
+                total_questions_rated,
+                is_active,
+                is_verified
+            ) VALUES (
+                :ff_id, NULL, 'Test City', 'Test Country', 'test', true, 1.0, 4.0, 4.0, 1, true, false
+            ) RETURNING id
+        """)
+        
+        result = db.execute(review_query, {"ff_id": freight_forwarder_id})
+        review_id = result.scalar()
+        
+        # Clean up the test review
+        cleanup_query = text("DELETE FROM reviews WHERE id = :review_id")
+        db.execute(cleanup_query, {"review_id": review_id})
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": "Simple review with NULL branch_id created successfully",
+            "test_review_id": str(review_id),
+            "freight_forwarder_id": str(freight_forwarder_id)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in test_create_simple_review: {e}")
+        db.rollback()
+        return {"error": str(e), "type": type(e).__name__}
+
 @router.get("/ping")
 async def ping():
     """Simple ping endpoint to test if reviews router is working"""
