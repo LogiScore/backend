@@ -159,35 +159,13 @@ async def create_review(
         try:
             logger.info(f"Creating review with data: freight_forwarder_id={review_data.freight_forwarder_id}, city={city}, country={country}")
             
-            # Use the location UUID as branch_id to maintain database compatibility
-            location_uuid = None
-            if location_data and location_data[0]:  # location_data[0] is the UUID
-                # Convert the location string to a proper UUID format
-                location_string = str(location_data[0])
-                try:
-                    # If it's already a valid UUID, use it
-                    if len(location_string) == 36 and '-' in location_string:
-                        location_uuid = UUID(location_string)
-                    else:
-                        # Convert alphanumeric string to UUID format
-                        # Pad with zeros and add hyphens to make it UUID-compliant
-                        padded_string = location_string.ljust(32, '0')
-                        uuid_string = f"{padded_string[:8]}-{padded_string[8:12]}-{padded_string[12:16]}-{padded_string[16:20]}-{padded_string[20:32]}"
-                        location_uuid = UUID(uuid_string)
-                        logger.info(f"Converted location string '{location_string}' to UUID: {location_uuid}")
-                except ValueError as e:
-                    logger.error(f"Error converting location string to UUID: {e}")
-                    # Fallback: generate a new UUID based on the location string
-                    import hashlib
-                    hash_object = hashlib.md5(location_string.encode())
-                    hash_hex = hash_object.hexdigest()
-                    uuid_string = f"{hash_hex[:8]}-{hash_hex[8:12]}-{hash_hex[12:16]}-{hash_hex[16:20]}-{hash_hex[20:32]}"
-                    location_uuid = UUID(uuid_string)
-                    logger.info(f"Generated UUID from hash for location '{location_string}': {location_uuid}")
+            # Since we're using locations instead of branches, set branch_id to NULL
+            # The city and country fields will store the location information
+            logger.info(f"Using city={city}, country={country} from location instead of branch_id")
             
             review = Review(
                 freight_forwarder_id=review_data.freight_forwarder_id,
-                branch_id=location_uuid,  # Use location UUID as branch_id
+                branch_id=None,  # Set to NULL since we're not using branches
                 city=city,
                 country=country,
                 user_id=current_user.get("id") if current_user else None,
@@ -284,7 +262,7 @@ async def create_review(
         return ReviewResponse(
             id=review.id,
             freight_forwarder_id=review.freight_forwarder_id,
-            location_id=review.branch_id,  # Now branch_id contains the location UUID
+            location_id=review_data.location_id,  # Use the original location_id from request
             city=city,
             country=country,
             review_type=review.review_type,
