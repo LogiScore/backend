@@ -88,16 +88,6 @@ async def check_route_conflicts():
         "database_status": "connected_with_139284_locations"
     }
 
-@router.get("/test-main")
-async def test_main_endpoint():
-    """Test the main endpoint without database dependency"""
-    return {
-        "message": "Main endpoint is accessible",
-        "method": "GET",
-        "path": "/",
-        "status": "working"
-    }
-
 @router.get("/", response_model=List[dict])
 async def get_locations(
     q: Optional[str] = Query(None, description="Search query for filtering locations"),
@@ -172,6 +162,16 @@ async def get_locations(
     except Exception as e:
         logger.error(f"Error processing locations request: {e}")
         raise HTTPException(status_code=500, detail="Error processing locations request")
+
+@router.get("/test-main")
+async def test_main_endpoint():
+    """Test the main endpoint without database dependency"""
+    return {
+        "message": "Main endpoint is accessible",
+        "method": "GET",
+        "path": "/",
+        "status": "working"
+    }
 
 @router.get("/{location_uuid}")
 async def get_location_by_uuid(
