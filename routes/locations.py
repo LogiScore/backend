@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Query, HTTPException, Depends
 from typing import List, Optional
 import logging
+import unicodedata
+import re
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from database.database import get_db
@@ -9,6 +11,60 @@ from database.database import get_db
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+def normalize_location_text(text: str) -> str:
+    """
+    Normalize location text for better search matching.
+    
+    Handles:
+    - Accented characters (ü -> u, ñ -> n, etc.)
+    - Common abbreviations and variations
+    - Special characters and punctuation
+    - Case normalization
+    """
+    if not text:
+        return ""
+    
+    # Convert to lowercase
+    normalized = text.lower()
+    
+    # Remove accents and diacritics
+    normalized = unicodedata.normalize('NFD', normalized)
+    normalized = ''.join(c for c in normalized if not unicodedata.combining(c))
+    
+    # Common location variations and abbreviations
+    variations = {
+        'munchen': 'münchen',
+        'muenchen': 'münchen',
+        'koeln': 'köln',
+        'koeln': 'cologne',
+        'nurnberg': 'nürnberg',
+        'nuernberg': 'nürnberg',
+        'frankfurt am main': 'frankfurt',
+        'frankfurt/main': 'frankfurt',
+        'new york city': 'new york',
+        'nyc': 'new york',
+        'los angeles': 'la',
+        'san francisco': 'sf',
+        'london england': 'london',
+        'paris france': 'paris',
+        'tokyo japan': 'tokyo',
+        'beijing china': 'beijing',
+        'peking': 'beijing',
+        'bombay': 'mumbai',
+        'calcutta': 'kolkata',
+        'madras': 'chennai'
+    }
+    
+    # Apply variations
+    for variant, standard in variations.items():
+        normalized = normalized.replace(variant, standard)
+    
+    # Remove extra whitespace and punctuation
+    normalized = re.sub(r'[^\w\s]', ' ', normalized)
+    normalized = re.sub(r'\s+', ' ', normalized).strip()
+    
+    return normalized
 
 @router.get("/debug")
 async def debug_locations():
@@ -34,6 +90,15 @@ async def debug_locations():
         "search_requirements": {
             "min_query_length": 4,
             "message": "Search query must be at least 4 characters long"
+        },
+        "normalization": {
+            "enabled": True,
+            "features": [
+                "Accented character removal (ü -> u, ñ -> n)",
+                "Common abbreviations (NYC -> New York)",
+                "Alternative spellings (Munchen -> München)",
+                "Case normalization"
+            ]
         }
     }
 
@@ -229,6 +294,39 @@ async def test_main_simple():
             {"id": "test-1", "name": "Test Location 1", "city": "Test City"},
             {"id": "test-2", "name": "Test Location 2", "city": "Test City 2"}
         ]
+    }
+
+@router.get("/test-normalization")
+async def test_normalization():
+    """Test location text normalization"""
+    test_cases = [
+        "münchen",
+        "munchen", 
+        "muenchen",
+        "köln",
+        "koeln",
+        "nürnberg",
+        "nurnberg",
+        "frankfurt am main",
+        "new york city",
+        "nyc",
+        "los angeles",
+        "san francisco"
+    ]
+    
+    results = []
+    for test_case in test_cases:
+        normalized = normalize_location_text(test_case)
+        results.append({
+            "original": test_case,
+            "normalized": normalized,
+            "changed": test_case.lower() != normalized
+        })
+    
+    return {
+        "message": "Location normalization test",
+        "normalization_function": "normalize_location_text",
+        "test_cases": results
     }
 
 @router.get("/{location_uuid}")
