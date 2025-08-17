@@ -156,61 +156,103 @@ async def create_review(
                     )
         
         # Create the main review record
-        review = Review(
-            freight_forwarder_id=review_data.freight_forwarder_id,
-            branch_id=None,  # No longer used
-            city=city,
-            country=country,
-            user_id=current_user.get("id") if current_user else None,
-            review_type=review_data.review_type,
-            is_anonymous=review_data.is_anonymous,
-            review_weight=review_data.review_weight,
-            aggregate_rating=review_data.aggregate_rating,
-            weighted_rating=review_data.weighted_rating,
-            total_questions_rated=sum(len(cat.questions) for cat in review_data.category_ratings),
-            is_active=True,
-            is_verified=False
-        )
+        try:
+            logger.info(f"Creating review with data: freight_forwarder_id={review_data.freight_forwarder_id}, city={city}, country={country}")
+            
+            review = Review(
+                freight_forwarder_id=review_data.freight_forwarder_id,
+                branch_id=None,  # No longer used
+                city=city,
+                country=country,
+                user_id=current_user.get("id") if current_user else None,
+                review_type=review_data.review_type,
+                is_anonymous=review_data.is_anonymous,
+                review_weight=review_data.review_weight,
+                aggregate_rating=review_data.aggregate_rating,
+                weighted_rating=review_data.weighted_rating,
+                total_questions_rated=sum(len(cat.questions) for cat in review_data.category_ratings),
+                is_active=True,
+                is_verified=False
+            )
+            
+            logger.info(f"Review object created successfully: {review}")
+            
+        except Exception as e:
+            logger.error(f"Error creating Review object: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Error creating review object: {str(e)}"
+            )
         
-        db.add(review)
-        db.flush()  # Get the review ID
+        try:
+            db.add(review)
+            db.flush()  # Get the review ID
+            logger.info(f"Review added to session and flushed, ID: {review.id}")
+            
+        except Exception as e:
+            logger.error(f"Error adding review to database session: {e}")
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Database error adding review: {str(e)}"
+            )
         
         # Create category scores for each question
-        for category in review_data.category_ratings:
-            for question in category.questions:
-                # Get question details from review_questions table
-                question_detail = db.query(ReviewQuestion).filter(
-                    ReviewQuestion.question_id == question.question
-                ).first()
-                
-                if question_detail:
-                    category_score = ReviewCategoryScore(
-                        review_id=review.id,
-                        category_id=category.category,
-                        category_name=question_detail.category_name,
-                        question_id=question.question,
-                        question_text=question_detail.question_text,
-                        rating=question.rating,
-                        rating_definition=question_detail.rating_definitions.get(str(question.rating), ""),
-                        weight=review_data.review_weight
-                    )
-                    db.add(category_score)
-                else:
-                    # If question not found, create with basic info
-                    category_score = ReviewCategoryScore(
-                        review_id=review.id,
-                        category_id=category.category,
-                        category_name=category.category,
-                        question_id=question.question,
-                        question_text=f"Question {question.question}",
-                        rating=question.rating,
-                        rating_definition="",
-                        weight=review_data.review_weight
-                    )
-                    db.add(category_score)
+        try:
+            for category in review_data.category_ratings:
+                for question in category.questions:
+                    # Get question details from review_questions table
+                    question_detail = db.query(ReviewQuestion).filter(
+                        ReviewQuestion.question_id == question.question
+                    ).first()
+                    
+                    if question_detail:
+                        category_score = ReviewCategoryScore(
+                            review_id=review.id,
+                            category_id=category.category,
+                            category_name=question_detail.category_name,
+                            question_id=question.question,
+                            question_text=question_detail.question_text,
+                            rating=question.rating,
+                            rating_definition=question_detail.rating_definitions.get(str(question.rating), ""),
+                            weight=review_data.review_weight
+                        )
+                        db.add(category_score)
+                    else:
+                        # If question not found, create with basic info
+                        category_score = ReviewCategoryScore(
+                            review_id=review.id,
+                            category_id=category.category,
+                            category_name=category.category,
+                            question_id=question.question,
+                            question_text=f"Question {question.question}",
+                            rating=question.rating,
+                            rating_definition="",
+                            weight=review_data.review_weight
+                        )
+                        db.add(category_score)
+            
+            logger.info(f"Category scores created successfully for review {review.id}")
+            
+        except Exception as e:
+            logger.error(f"Error creating category scores: {e}")
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Error creating category scores: {str(e)}"
+            )
         
-        db.commit()
-        db.refresh(review)
+        try:
+            db.commit()
+            db.refresh(review)
+            logger.info(f"Review committed successfully: {review.id}")
+        except Exception as e:
+            logger.error(f"Error committing review: {e}")
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Database commit error: {str(e)}"
+            )
         
         # Return the created review
         return ReviewResponse(
