@@ -291,9 +291,9 @@ async def get_review(
     
     return review 
 
-@router.get("/debug/locations")
-async def debug_locations(db: Session = Depends(get_db)):
-    """Debug endpoint to check locations table"""
+@router.get("/test/locations")
+async def test_locations(db: Session = Depends(get_db)):
+    """Test endpoint to check locations table"""
     try:
         from sqlalchemy import text
         
@@ -326,5 +326,10 @@ async def debug_locations(db: Session = Depends(get_db)):
             ]
         }
     except Exception as e:
-        logger.error(f"Error in debug_locations: {e}")
-        return {"error": str(e)} 
+        logger.error(f"Error in test_locations: {e}")
+        return {"error": str(e)}
+
+@router.get("/ping")
+async def ping():
+    """Simple ping endpoint to test if reviews router is working"""
+    return {"message": "Reviews router is working", "status": "ok"} 
