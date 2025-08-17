@@ -159,13 +159,16 @@ async def create_review(
         try:
             logger.info(f"Creating review with data: freight_forwarder_id={review_data.freight_forwarder_id}, city={city}, country={country}")
             
-            # Since we're using locations instead of branches, set branch_id to NULL
-            # The city and country fields will store the location information
-            logger.info(f"Using city={city}, country={country} from location instead of branch_id")
+            # Since we're using locations instead of branches, we need to work around database constraints
+            # Create a dummy UUID for branch_id to satisfy any NOT NULL constraints
+            # The real location data will be stored in city/country fields
+            import uuid
+            dummy_branch_id = uuid.uuid4()  # Generate a random UUID for branch_id
+            logger.info(f"Using city={city}, country={country} from location, dummy branch_id={dummy_branch_id}")
             
             review = Review(
                 freight_forwarder_id=review_data.freight_forwarder_id,
-                branch_id=None,  # Set to NULL since we're not using branches
+                branch_id=dummy_branch_id,  # Use dummy UUID to satisfy database constraints
                 city=city,
                 country=country,
                 user_id=current_user.get("id") if current_user else None,
@@ -219,7 +222,9 @@ async def create_review(
                             question_text=question_detail.question_text,
                             rating=question.rating,
                             rating_definition=question_detail.rating_definitions.get(str(question.rating), ""),
-                            weight=review_data.review_weight
+                            weight=review_data.review_weight,
+                            category=category.category,  # Set the category field
+                            score=0.0  # Set a default score
                         )
                         db.add(category_score)
                     else:
@@ -232,7 +237,9 @@ async def create_review(
                             question_text=f"Question {question.question}",
                             rating=question.rating,
                             rating_definition="",
-                            weight=review_data.review_weight
+                            weight=review_data.review_weight,
+                            category=category.category,  # Set the category field
+                            score=0.0  # Set a default score
                         )
                         db.add(category_score)
             
@@ -322,23 +329,6 @@ async def get_reviews_by_freight_forwarder(
     ).order_by(Review.created_at.desc()).all()
     
     return reviews
-
-@router.get("/{review_id}", response_model=ReviewResponse)
-async def get_review(
-    review_id: UUID,
-    db: Session = Depends(get_db)
-):
-    """Get a specific review by ID"""
-    
-    review = db.query(Review).filter(Review.id == review_id).first()
-    
-    if not review:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Review not found"
-        )
-    
-    return review 
 
 @router.get("/test/locations")
 async def test_locations(db: Session = Depends(get_db)):
@@ -544,3 +534,20 @@ async def debug_schema(db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Error in debug_schema: {e}")
         return {"error": str(e)} 
+
+@router.get("/{review_id}", response_model=ReviewResponse)
+async def get_review(
+    review_id: UUID,
+    db: Session = Depends(get_db)
+):
+    """Get a specific review by ID"""
+    
+    review = db.query(Review).filter(Review.id == review_id).first()
+    
+    if not review:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Review not found"
+        )
+    
+    return review 
