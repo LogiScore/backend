@@ -173,17 +173,16 @@ async def get_locations(
         # Convert to response format
         locations = []
         for row in rows:
-            # Use dictionary-style access for quoted column names
-            row_dict = dict(row._mapping)
+            # Use index-based access for quoted column names
             locations.append({
-                "id": str(row_dict["UUID"]),  # Use UUID as ID for reviews system
-                "uuid": str(row_dict["UUID"]),  # Also include UUID field
-                "name": row_dict["Location"] if row_dict["Location"] else f"{row_dict['City']}, {row_dict['State']}, {row_dict['Country']}".strip(', '),
-                "city": row_dict["City"] if row_dict["City"] else "",
-                "state": row_dict["State"] if row_dict["State"] else "",
-                "country": row_dict["Country"] if row_dict["Country"] else "",
-                "region": row_dict["Region"] if row_dict["Region"] else "",
-                "subregion": row_dict["Subregion"] if row_dict["Subregion"] else ""
+                "id": str(row[0]),  # UUID
+                "uuid": str(row[0]),  # UUID
+                "name": row[1] if row[1] else f"{row[2]}, {row[3]}, {row[4]}".strip(', '),  # Location or City, State, Country
+                "city": row[2] if row[2] else "",  # City
+                "state": row[3] if row[3] else "",  # State
+                "country": row[4] if row[4] else "",  # Country
+                "region": row[5] if row[5] else "",  # Region
+                "subregion": row[6] if row[6] else ""  # Subregion
             })
         
         # Return paginated response with metadata
@@ -254,17 +253,16 @@ async def get_location_by_uuid(
         if not row:
             raise HTTPException(status_code=404, detail="Location not found")
         
-        # Use dictionary-style access for quoted column names
-        row_dict = dict(row._mapping)
+        # Use index-based access for quoted column names
         location = {
-            "id": str(row_dict["UUID"]),
-            "uuid": str(row_dict["UUID"]),
-            "name": row_dict["Location"] if row_dict["Location"] else f"{row_dict['City']}, {row_dict['State']}, {row_dict['Country']}".strip(', '),
-            "city": row_dict["City"] if row_dict["City"] else "",
-            "state": row_dict["State"] if row_dict["State"] else "",
-            "country": row_dict["Country"] if row_dict["Country"] else "",
-            "region": row_dict["Region"] if row_dict["Region"] else "",
-            "subregion": row_dict["Subregion"] if row_dict["Subregion"] else ""
+            "id": str(row[0]),  # UUID
+            "uuid": str(row[0]),  # UUID
+            "name": row[1] if row[1] else f"{row[2]}, {row[3]}, {row[4]}".strip(', '),  # Location or City, State, Country
+            "city": row[2] if row[2] else "",  # City
+            "state": row[3] if row[3] else "",  # State
+            "country": row[4] if row[4] else "",  # Country
+            "region": row[5] if row[5] else "",  # Region
+            "subregion": row[6] if row[6] else ""  # Subregion
         }
         
         return location
@@ -415,15 +413,14 @@ async def search_autocomplete(
         
         locations = []
         for row in rows:
-            # Use dictionary-style access for quoted column names
-            row_dict = dict(row._mapping)
+            # Use index-based access for quoted column names
             locations.append({
-                "id": str(row_dict["UUID"]),
-                "uuid": str(row_dict["UUID"]),
-                "name": row_dict["Location"] if row_dict["Location"] else f"{row_dict['City']}, {row_dict['State']}, {row_dict['Country']}".strip(', '),
-                "city": row_dict["City"] if row_dict["City"] else "",
-                "state": row_dict["State"] if row_dict["State"] else "",
-                "country": row_dict["Country"] if row_dict["Country"] else ""
+                "id": str(row[0]),  # UUID
+                "uuid": str(row[0]),  # UUID
+                "name": row[1] if row[1] else f"{row[2]}, {row[3]}, {row[4]}".strip(', '),  # Location or City, State, Country
+                "city": row[2] if row[2] else "",  # City
+                "state": row[3] if row[3] else "",  # State
+                "country": row[4] if row[4] else ""  # Country
             })
         
         return locations
