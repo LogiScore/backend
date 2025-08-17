@@ -88,6 +88,16 @@ async def check_route_conflicts():
         "database_status": "connected_with_139284_locations"
     }
 
+@router.get("/test-main")
+async def test_main_endpoint():
+    """Test the main endpoint without database dependency"""
+    return {
+        "message": "Main endpoint is accessible",
+        "method": "GET",
+        "path": "/",
+        "status": "working"
+    }
+
 @router.get("/", response_model=List[dict])
 async def get_locations(
     q: Optional[str] = Query(None, description="Search query for filtering locations"),
@@ -96,15 +106,8 @@ async def get_locations(
     country: Optional[str] = Query(None, description="Filter by country code or name"),
     db: Session = Depends(get_db)
 ):
-    """
-    Get locations with optional search and filtering.
-    
-    - **q**: Search query to filter locations by city, state, country, or location name
-    - **limit**: Maximum number of results (1-1000, default: 50)
-    - **region**: Filter by specific region
-    - **country**: Filter by specific country
-    """
     logger.info(f"GET /api/locations called with q={q}, limit={limit}, region={region}, country={country}")
+    logger.info(f"Database session: {db is not None}")
     
     try:
         # Build the base query
