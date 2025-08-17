@@ -32,8 +32,8 @@ async def debug_locations():
             "features": ["page", "page_size", "total_count", "total_pages", "has_next", "has_previous"]
         },
         "search_requirements": {
-            "min_query_length": 3,
-            "message": "Search query must be at least 3 characters long"
+            "min_query_length": 4,
+            "message": "Search query must be at least 4 characters long"
         }
     }
 
@@ -102,7 +102,7 @@ async def check_route_conflicts():
 
 @router.get("/")
 async def get_locations(
-    q: Optional[str] = Query(None, min_length=3, description="Search query for filtering locations (minimum 3 characters)"),
+    q: Optional[str] = Query(None, min_length=4, description="Search query for filtering locations (minimum 4 characters)"),
     page: Optional[int] = Query(1, ge=1, description="Page number (starts from 1)"),
     page_size: Optional[int] = Query(100, ge=1, le=1000, description="Items per page (1-1000)"),
     region: Optional[str] = Query(None, description="Filter by region (e.g., 'Americas', 'Europe')"),
@@ -315,7 +315,7 @@ async def get_countries(db: Session = Depends(get_db)):
 
 @router.get("/total-count")
 async def get_total_count(
-    q: Optional[str] = Query(None, min_length=3, description="Search query for filtering locations (minimum 3 characters)"),
+    q: Optional[str] = Query(None, min_length=4, description="Search query for filtering locations (minimum 4 characters)"),
     region: Optional[str] = Query(None, description="Filter by region"),
     country: Optional[str] = Query(None, description="Filter by country"),
     db: Session = Depends(get_db)
