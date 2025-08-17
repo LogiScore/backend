@@ -159,9 +159,14 @@ async def create_review(
         try:
             logger.info(f"Creating review with data: freight_forwarder_id={review_data.freight_forwarder_id}, city={city}, country={country}")
             
+            # Use the location UUID as branch_id to maintain database compatibility
+            location_uuid = None
+            if location_data and location_data[0]:  # location_data[0] is the UUID
+                location_uuid = location_data[0]
+            
             review = Review(
                 freight_forwarder_id=review_data.freight_forwarder_id,
-                branch_id=None,  # No longer used
+                branch_id=location_uuid,  # Use location UUID as branch_id
                 city=city,
                 country=country,
                 user_id=current_user.get("id") if current_user else None,
@@ -258,7 +263,7 @@ async def create_review(
         return ReviewResponse(
             id=review.id,
             freight_forwarder_id=review.freight_forwarder_id,
-            location_id=review_data.location_id,  # Use the location_id from the request
+            location_id=review.branch_id,  # Now branch_id contains the location UUID
             city=city,
             country=country,
             review_type=review.review_type,
