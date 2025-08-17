@@ -90,7 +90,7 @@ async def check_route_conflicts():
         "database_status": "connected_with_139284_locations"
     }
 
-@router.get("/", response_model=List[dict])
+@router.get("/")
 async def get_locations(
     q: Optional[str] = Query(None, description="Search query for filtering locations"),
     limit: Optional[int] = Query(50, ge=1, le=1000, description="Maximum number of results"),
@@ -176,6 +176,17 @@ async def test_main_endpoint():
         "method": "GET",
         "path": "/",
         "status": "working"
+    }
+
+@router.get("/test-main-simple")
+async def test_main_simple():
+    """Test the main endpoint with minimal parameters"""
+    return {
+        "message": "Main endpoint simple test",
+        "data": [
+            {"id": "test-1", "name": "Test Location 1", "city": "Test City"},
+            {"id": "test-2", "name": "Test Location 2", "city": "Test City 2"}
+        ]
     }
 
 @router.get("/{location_uuid}")
