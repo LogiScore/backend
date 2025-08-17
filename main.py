@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from database.database import get_db, get_engine
 from database.models import Base
 from auth.auth import get_current_user, create_access_token
-from routes import users, freight_forwarders, reviews, search, subscriptions, auth, locations
+from routes import users, freight_forwarders, branches, reviews, search, subscriptions, auth, locations
 
 # Load environment variables
 load_dotenv()
@@ -82,6 +82,7 @@ async def global_exception_handler(request, exc):
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(freight_forwarders.router, prefix="/api/freight-forwarders", tags=["freight-forwarders"])
+app.include_router(branches.router, prefix="/api/branches", tags=["branches"])  # Add missing branches router
 app.include_router(reviews.router, prefix="/api/reviews", tags=["reviews"])
 app.include_router(search.router, prefix="/api/search", tags=["search"])
 app.include_router(subscriptions.router, prefix="/api/subscriptions", tags=["subscriptions"])
