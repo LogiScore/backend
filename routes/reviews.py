@@ -26,7 +26,7 @@ class CategoryRating(BaseModel):
 
 class ReviewCreate(BaseModel):
     freight_forwarder_id: UUID
-    location_id: Union[UUID, str]  # Required: location UUID from locations table
+    location_id: Union[UUID, str]  # Required: location UUID or location name from locations table
     review_type: str = "general"
     is_anonymous: bool = False
     review_weight: float = 1.0
@@ -80,14 +80,17 @@ async def create_review(
             # Query the locations table to get city and country
             from sqlalchemy import text
             
-            # First, let's check if the location exists and get some debug info
-            debug_query = text("""
+            # Try to find location by UUID first, then by name if that fails
+            location_query = text("""
                 SELECT "UUID", "Location", "City", "Country", "Region"
                 FROM locations 
-                WHERE "UUID" = :location_uuid
+                WHERE "UUID" = :location_id OR "Location" = :location_name
             """)
             
-            result = db.execute(debug_query, {"location_uuid": review_data.location_id})
+            result = db.execute(location_query, {
+                "location_id": review_data.location_id,
+                "location_name": review_data.location_id
+            })
             location_data = result.fetchone()
             
             if not location_data:
@@ -101,11 +104,11 @@ async def create_review(
                 sample_locations = sample_result.fetchall()
                 
                 logger.error(f"Location not found. Sample locations in DB: {sample_locations}")
-                logger.error(f"Looking for UUID: {review_data.location_id}")
+                logger.error(f"Looking for: {review_data.location_id}")
                 
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Location not found with UUID: {review_data.location_id}"
+                    detail=f"Location not found: {review_data.location_id}. Please use a valid location name or UUID."
                 )
             
             # Extract city and country from location data
@@ -121,7 +124,7 @@ async def create_review(
             logger.error(f"Error querying location: {e}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid location_id format. Must be a valid UUID"
+                detail="Invalid location format. Must be a valid UUID or location name"
             )
         
         # Validate ratings
