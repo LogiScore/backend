@@ -16,7 +16,8 @@ async def debug_locations():
     return {
         "message": "Locations router is working",
         "endpoints": [
-            "GET / - Main locations search",
+            "GET / - Main locations search with pagination",
+            "GET /total-count - Get total count for filters",
             "GET /{uuid} - Get by UUID", 
             "GET /regions - Available regions",
             "GET /countries - Available countries",
@@ -24,7 +25,16 @@ async def debug_locations():
         ],
         "status": "ready",
         "router_prefix": "/api/locations",
-        "main_route_defined": True
+        "main_route_defined": True,
+        "pagination": {
+            "default_page_size": 100,
+            "max_page_size": 1000,
+            "features": ["page", "page_size", "total_count", "total_pages", "has_next", "has_previous"]
+        },
+        "search_requirements": {
+            "min_query_length": 3,
+            "message": "Search query must be at least 3 characters long"
+        }
     }
 
 @router.get("/test-simple")
@@ -92,16 +102,19 @@ async def check_route_conflicts():
 
 @router.get("/")
 async def get_locations(
-    q: Optional[str] = Query(None, description="Search query for filtering locations"),
-    limit: Optional[int] = Query(50, ge=1, le=1000, description="Maximum number of results"),
+    q: Optional[str] = Query(None, min_length=3, description="Search query for filtering locations (minimum 3 characters)"),
+    page: Optional[int] = Query(1, ge=1, description="Page number (starts from 1)"),
+    page_size: Optional[int] = Query(100, ge=1, le=1000, description="Items per page (1-1000)"),
     region: Optional[str] = Query(None, description="Filter by region (e.g., 'Americas', 'Europe')"),
     country: Optional[str] = Query(None, description="Filter by country code or name"),
     db: Session = Depends(get_db)
 ):
     """
-    Main locations endpoint - GET /api/locations
+    Main locations endpoint with pagination - GET /api/locations
+    
+    Returns paginated results with metadata for optimal frontend performance.
     """
-    logger.info(f"GET /api/locations called with q={q}, limit={limit}, region={region}, country={country}")
+    logger.info(f"GET /api/locations called with q={q}, page={page}, page_size={page_size}, region={region}, country={country}")
     logger.info(f"Database session: {db is not None}")
     
     try:
@@ -139,11 +152,21 @@ async def get_locations(
             base_query += country_filter
             params['country'] = f"%{country.strip()}%"
         
-        # Add ordering and limit
-        base_query += " ORDER BY \"City\", \"Country\" LIMIT :limit"
-        params['limit'] = limit
+        # Get total count for pagination metadata
+        count_query = base_query.replace("SELECT \"UUID\", \"Location\", \"City\", \"State\", \"Country\", \"Region\", \"Subregion\"", "SELECT COUNT(*)")
+        count_result = db.execute(text(count_query), params)
+        total_count = count_result.scalar()
         
-        # Execute query
+        # Calculate pagination
+        offset = (page - 1) * page_size
+        total_pages = (total_count + page_size - 1) // page_size
+        
+        # Add ordering and pagination
+        base_query += " ORDER BY \"City\", \"Country\" LIMIT :page_size OFFSET :offset"
+        params['page_size'] = page_size
+        params['offset'] = offset
+        
+        # Execute paginated query
         result = db.execute(text(base_query), params)
         rows = result.fetchall()
         
@@ -161,8 +184,26 @@ async def get_locations(
                 "subregion": row.Subregion if row.Subregion else ""
             })
         
-        logger.info(f"Returning {len(locations)} locations (query: {q}, region: {region}, country: {country})")
-        return locations
+        # Return paginated response with metadata
+        response = {
+            "data": locations,
+            "pagination": {
+                "page": page,
+                "page_size": page_size,
+                "total_count": total_count,
+                "total_pages": total_pages,
+                "has_next": page < total_pages,
+                "has_previous": page > 1
+            },
+            "filters": {
+                "query": q,
+                "region": region,
+                "country": country
+            }
+        }
+        
+        logger.info(f"Returning {len(locations)} locations from page {page} of {total_pages} (total: {total_count})")
+        return response
         
     except Exception as e:
         logger.error(f"Error processing locations request: {e}")
@@ -269,6 +310,67 @@ async def get_countries(db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Error getting countries: {e}")
         raise HTTPException(status_code=500, detail="Error getting countries")
+
+@router.get("/total-count")
+async def get_total_count(
+    q: Optional[str] = Query(None, min_length=3, description="Search query for filtering locations (minimum 3 characters)"),
+    region: Optional[str] = Query(None, description="Filter by region"),
+    country: Optional[str] = Query(None, description="Filter by country"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get total count of locations matching filters.
+    Useful for frontend pagination controls and performance optimization.
+    """
+    try:
+        base_query = """
+        SELECT COUNT(*) as total
+        FROM locations
+        WHERE 1=1
+        """
+        
+        params = {}
+        
+        # Add search filter
+        if q and q.strip():
+            search_query = """
+            AND (
+                LOWER("Location") LIKE LOWER(:search_query) OR
+                LOWER("City") LIKE LOWER(:search_query) OR
+                LOWER("State") LIKE LOWER(:search_query) OR
+                LOWER("Country") LIKE LOWER(:search_query)
+            )
+            """
+            base_query += search_query
+            params['search_query'] = f"%{q.strip()}%"
+        
+        # Add region filter
+        if region and region.strip():
+            region_filter = "AND LOWER(\"Region\") = LOWER(:region)"
+            base_query += region_filter
+            params['region'] = region.strip()
+        
+        # Add country filter
+        if country and country.strip():
+            country_filter = "AND LOWER(\"Country\") LIKE LOWER(:country)"
+            base_query += country_filter
+            params['country'] = f"%{country.strip()}%"
+        
+        result = db.execute(text(base_query), params)
+        total_count = result.scalar()
+        
+        return {
+            "total_count": total_count,
+            "filters": {
+                "query": q,
+                "region": region,
+                "country": country
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting total count: {e}")
+        raise HTTPException(status_code=500, detail="Error getting total count")
 
 @router.get("/search/autocomplete")
 async def search_autocomplete(
