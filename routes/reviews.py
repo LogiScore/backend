@@ -266,20 +266,40 @@ async def create_review(
             )
         
         # Return the created review
-        return ReviewResponse(
-            id=review.id,
-            freight_forwarder_id=review.freight_forwarder_id,
-            location_id=review_data.location_id,  # Use the original location_id from request
-            city=city,
-            country=country,
-            review_type=review.review_type,
-            is_anonymous=review.is_anonymous,
-            review_weight=float(review.review_weight) if review.review_weight else 1.0,
-            aggregate_rating=float(review.aggregate_rating) if review.aggregate_rating else 0.0,
-            weighted_rating=float(review.weighted_rating) if review.weighted_rating else 0.0,
-            total_questions_rated=review.total_questions_rated,
-            created_at=review.created_at
-        )
+        try:
+            # Convert location_id to UUID if it's a string
+            location_uuid = review_data.location_id
+            if isinstance(location_uuid, str):
+                try:
+                    location_uuid = UUID(location_uuid)
+                except ValueError:
+                    # If conversion fails, use the review's branch_id as fallback
+                    location_uuid = review.branch_id
+            
+            response = ReviewResponse(
+                id=review.id,
+                freight_forwarder_id=review.freight_forwarder_id,
+                location_id=location_uuid,
+                city=city,
+                country=country,
+                review_type=review.review_type,
+                is_anonymous=review.is_anonymous,
+                review_weight=float(review.review_weight) if review.review_weight else 1.0,
+                aggregate_rating=float(review.aggregate_rating) if review.aggregate_rating else 0.0,
+                weighted_rating=float(review.weighted_rating) if review.weighted_rating else 0.0,
+                total_questions_rated=review.total_questions_rated,
+                created_at=review.created_at
+            )
+            
+            logger.info(f"ReviewResponse created successfully: {response}")
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error creating ReviewResponse: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error creating response: {str(e)}"
+            )
         
     except HTTPException:
         # Re-raise HTTP exceptions
