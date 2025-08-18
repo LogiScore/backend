@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from database.database import get_db, get_engine
 from database.models import Base
 from auth.auth import get_current_user, create_access_token
-from routes import users, freight_forwarders, reviews, search, subscriptions, auth, locations
+from routes import users, freight_forwarders, reviews, search, subscriptions, auth, locations, email
 
 # Load environment variables
 load_dotenv()
@@ -86,6 +86,7 @@ app.include_router(reviews.router, prefix="/api/reviews", tags=["reviews"])
 app.include_router(search.router, prefix="/api/search", tags=["search"])
 app.include_router(subscriptions.router, prefix="/api/subscriptions", tags=["subscriptions"])
 app.include_router(locations.router, prefix="/api/locations", tags=["locations"])  # Locations API for frontend integration
+app.include_router(email.router, prefix="/api/email", tags=["email"])  # Email API for sending emails
 
 @app.get("/")
 async def root():

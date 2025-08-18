@@ -269,5 +269,192 @@ class EmailService:
             logger.info(f"FALLBACK: Welcome email would be sent to {to_email}")
             return True  # Return True for fallback mode
 
+    async def send_review_thank_you_email(self, to_email: str, user_name: str, freight_forwarder_name: str, 
+                                        city: str, country: str, category_scores: list) -> bool:
+        """Send thank you email after review submission"""
+        try:
+            if not self.api_key:
+                logger.info(f"FALLBACK: Review thank you email would be sent to {to_email}")
+                return True
+            
+            subject = f"Thank you for your review of {freight_forwarder_name}! 🚢"
+            
+            # Build category scores HTML
+            category_scores_html = ""
+            for score in category_scores:
+                stars = "⭐" * score['rating']
+                category_scores_html += f"""
+                <tr>
+                    <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">
+                        <strong>{score['category_name']}</strong><br>
+                        <span style="color: #6c757d; font-size: 14px;">{score['question_text']}</span>
+                    </td>
+                    <td style="padding: 12px; border-bottom: 1px solid #dee2e6; text-align: center;">
+                        <span style="font-size: 18px;">{stars}</span><br>
+                        <span style="color: #6c757d; font-size: 12px;">{score['rating_definition']}</span>
+                    </td>
+                </tr>
+                """
+            
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Thank you for your review!</title>
+                <style>
+                    body {{
+                        font-family: Arial, sans-serif;
+                        line-height: 1.6;
+                        color: #333;
+                        max-width: 700px;
+                        margin: 0 auto;
+                        padding: 20px;
+                    }}
+                    .header {{
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                        padding: 30px;
+                        text-align: center;
+                        border-radius: 10px 10px 0 0;
+                    }}
+                    .content {{
+                        background: #f8f9fa;
+                        padding: 30px;
+                        border-radius: 0 0 10px 10px;
+                    }}
+                    .review-summary {{
+                        background: white;
+                        border: 1px solid #dee2e6;
+                        border-radius: 8px;
+                        padding: 20px;
+                        margin: 20px 0;
+                    }}
+                    .category-scores {{
+                        background: white;
+                        border: 1px solid #dee2e6;
+                        border-radius: 8px;
+                        margin: 20px 0;
+                        overflow: hidden;
+                    }}
+                    .category-scores table {{
+                        width: 100%;
+                        border-collapse: collapse;
+                    }}
+                    .category-scores th {{
+                        background: #f8f9fa;
+                        padding: 15px 12px;
+                        text-align: left;
+                        font-weight: bold;
+                        border-bottom: 2px solid #dee2e6;
+                    }}
+                    .cta-button {{
+                        display: inline-block;
+                        background: #28a745;
+                        color: white;
+                        padding: 15px 30px;
+                        text-decoration: none;
+                        border-radius: 5px;
+                        font-weight: bold;
+                        margin: 20px 0;
+                    }}
+                    .footer {{
+                        text-align: center;
+                        margin-top: 30px;
+                        padding-top: 20px;
+                        border-top: 1px solid #dee2e6;
+                        color: #6c757d;
+                        font-size: 14px;
+                    }}
+                    .location-info {{
+                        background: #e3f2fd;
+                        border: 1px solid #bbdefb;
+                        border-radius: 5px;
+                        padding: 15px;
+                        margin: 15px 0;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>🎉 Thank you for your review!</h1>
+                    <p>Your feedback helps the logistics community</p>
+                </div>
+                
+                <div class="content">
+                    <h2>Hello {user_name}!</h2>
+                    
+                    <p>Thank you for taking the time to submit your review on LogiScore. Your feedback is invaluable to the logistics community and helps other businesses make informed decisions.</p>
+                    
+                    <div class="review-summary">
+                        <h3>📋 Review Summary</h3>
+                        <p><strong>Freight Forwarder:</strong> {freight_forwarder_name}</p>
+                        <div class="location-info">
+                            <strong>📍 Location:</strong> {city}, {country}
+                        </div>
+                    </div>
+                    
+                    <div class="category-scores">
+                        <h3>⭐ Your Ratings</h3>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width: 60%;">Category & Question</th>
+                                    <th style="width: 40%;">Your Rating</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {category_scores_html}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <p>Your review has been submitted and is now visible to the LogiScore community. Other users can now benefit from your experience and insights.</p>
+                    
+                    <a href="https://logiscore.net" class="cta-button">Visit LogiScore</a>
+                    
+                    <p>If you have any questions about your review or need to make changes, please don't hesitate to contact our support team.</p>
+                    
+                    <p>Best regards,<br>The LogiScore Team</p>
+                </div>
+                
+                <div class="footer">
+                    <p>This is an automated message. Please do not reply to this email.</p>
+                    <p>&copy; 2025 LogiScore. All rights reserved.</p>
+                </div>
+            </body>
+            </html>
+            """
+            
+            # Create SendGrid message
+            message = Mail(
+                from_email=Email(self.from_email, self.from_name),
+                to_emails=To(to_email),
+                subject=subject,
+                html_content=HtmlContent(html_content)
+            )
+            
+            # Send email
+            sg = SendGridAPIClient(self.api_key)
+            
+            # Set EU data residency if needed
+            if os.getenv('SENDGRID_EU_RESIDENCY', 'false').lower() == 'true':
+                sg.set_sendgrid_data_residency("eu")
+            
+            response = sg.send(message)
+            
+            if response.status_code == 202:
+                logger.info(f"Review thank you email sent successfully to {to_email}")
+                return True
+            else:
+                logger.error(f"Failed to send review thank you email. Status code: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error sending review thank you email to {to_email}: {str(e)}")
+            logger.info(f"FALLBACK: Review thank you email would be sent to {to_email}")
+            return True  # Return True for fallback mode
+
 # Create singleton instance
 email_service = EmailService()
