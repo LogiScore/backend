@@ -93,7 +93,7 @@ class Review(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)  # Changed to nullable for anonymous reviews
     freight_forwarder_id = Column(UUID(as_uuid=True), ForeignKey("freight_forwarders.id"), nullable=False)
-    branch_id = Column(UUID(as_uuid=True), ForeignKey("branches.id"), nullable=True)
+    branch_id = Column(UUID(as_uuid=True), nullable=True)  # Removed foreign key constraint to branches table
     city = Column(String(100), nullable=True)  # Added: city from branch for easier querying
     country = Column(String(100), nullable=True)  # Added: country from branch for easier querying
     review_type = Column(String(50), default="general")  # Added: general, import, export, domestic, warehousing
