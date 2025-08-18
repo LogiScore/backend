@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, HttpUrl
 from typing import Optional, List
 from database.database import get_db
-from database.models import FreightForwarder, Branch
+from database.models import FreightForwarder, Branch, Review, ReviewCategoryScore
 from auth.auth import get_current_user
 from database.models import User
 
@@ -28,6 +28,7 @@ class FreightForwarderResponse(BaseModel):
     headquarters_country: Optional[str]  # Keep this field
     average_rating: Optional[float] = 0.0
     review_count: Optional[int] = 0
+    category_scores_summary: Optional[dict] = {}  # New field for aggregated category scores
     created_at: datetime
 
     class Config:
@@ -72,16 +73,23 @@ async def get_freight_forwarders(
         result = []
         for ff in freight_forwarders:
             try:
-                # Safely get average_rating and review_count
+                # Calculate company rating from reviews.aggregate_rating
                 try:
                     avg_rating = ff.average_rating if hasattr(ff, 'average_rating') else 0.0
                 except Exception:
                     avg_rating = 0.0
                 
+                # Count total reviews for each company
                 try:
                     review_count = ff.review_count if hasattr(ff, 'review_count') else 0
                 except Exception:
                     review_count = 0
+                
+                # Aggregate category scores from review_category_scores
+                try:
+                    category_scores = ff.category_scores_summary if hasattr(ff, 'category_scores_summary') else {}
+                except Exception:
+                    category_scores = {}
                 
                 # Create response manually to avoid SQL generation issues
                 response = FreightForwarderResponse(
@@ -93,6 +101,7 @@ async def get_freight_forwarders(
                     headquarters_country=ff.headquarters_country,
                     average_rating=avg_rating,
                     review_count=review_count,
+                    category_scores_summary=category_scores,
                     created_at=ff.created_at
                 )
                 result.append(response)
@@ -108,6 +117,98 @@ async def get_freight_forwarders(
         # Return empty list instead of crashing
         return []
 
+@router.get("/aggregated/", response_model=List[FreightForwarderResponse])
+async def get_freight_forwarders_aggregated(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    search: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """Get freight forwarders with efficiently calculated aggregated data using SQL"""
+    try:
+        from sqlalchemy import func, case, text
+        
+        # Build the base query with aggregations
+        query = db.query(
+            FreightForwarder.id,
+            FreightForwarder.name,
+            FreightForwarder.website,
+            FreightForwarder.logo_url,
+            FreightForwarder.description,
+            FreightForwarder.headquarters_country,
+            FreightForwarder.created_at,
+            # Calculate average rating from reviews.aggregate_rating
+            func.avg(Review.aggregate_rating).label('calculated_average_rating'),
+            # Count total reviews
+            func.count(Review.id).label('calculated_review_count')
+        ).outerjoin(Review, FreightForwarder.id == Review.freight_forwarder_id)
+        
+        if search:
+            query = query.filter(FreightForwarder.name.ilike(f"%{search}%"))
+        
+        # Group by freight forwarder and apply pagination
+        query = query.group_by(
+            FreightForwarder.id,
+            FreightForwarder.name,
+            FreightForwarder.website,
+            FreightForwarder.logo_url,
+            FreightForwarder.description,
+            FreightForwarder.headquarters_country,
+            FreightForwarder.created_at
+        ).offset(skip).limit(limit)
+        
+        results = query.all()
+        
+        # Convert to response model
+        freight_forwarders = []
+        for result in results:
+            # Get category scores summary for this freight forwarder
+            category_scores = {}
+            try:
+                # Query category scores for this specific freight forwarder
+                category_query = db.query(
+                    ReviewCategoryScore.category_id,
+                    ReviewCategoryScore.category_name,
+                    func.avg(ReviewCategoryScore.rating * ReviewCategoryScore.weight).label('avg_weighted_rating'),
+                    func.count(ReviewCategoryScore.id).label('total_questions')
+                ).join(Review, ReviewCategoryScore.review_id == Review.id).filter(
+                    Review.freight_forwarder_id == result.id
+                ).group_by(
+                    ReviewCategoryScore.category_id,
+                    ReviewCategoryScore.category_name
+                )
+                
+                category_results = category_query.all()
+                for cat_result in category_results:
+                    category_scores[cat_result.category_id] = {
+                        "average_rating": float(cat_result.avg_weighted_rating or 0),
+                        "total_reviews": int(cat_result.total_questions or 0),
+                        "category_name": cat_result.category_name
+                    }
+            except Exception as e:
+                print(f"Error calculating category scores for freight forwarder {result.id}: {e}")
+                category_scores = {}
+            
+            response = FreightForwarderResponse(
+                id=result.id,
+                name=result.name,
+                website=result.website,
+                logo_url=result.logo_url,
+                description=result.description,
+                headquarters_country=result.headquarters_country,
+                average_rating=float(result.calculated_average_rating or 0),
+                review_count=int(result.calculated_review_count or 0),
+                category_scores_summary=category_scores,
+                created_at=result.created_at
+            )
+            freight_forwarders.append(response)
+        
+        return freight_forwarders
+        
+    except Exception as e:
+        print(f"Error in get_freight_forwarders_aggregated: {e}")
+        return []
+
 @router.get("/{freight_forwarder_id}", response_model=FreightForwarderResponse)
 async def get_freight_forwarder(
     freight_forwarder_id: str,
@@ -121,16 +222,23 @@ async def get_freight_forwarder(
     if not freight_forwarder:
         raise HTTPException(status_code=404, detail="Freight forwarder not found")
     
-    # Safely get average_rating and review_count
+    # Calculate company rating from reviews.aggregate_rating
     try:
         avg_rating = freight_forwarder.average_rating if hasattr(freight_forwarder, 'average_rating') else 0.0
     except Exception:
         avg_rating = 0.0
     
+    # Count total reviews for each company
     try:
         review_count = freight_forwarder.review_count if hasattr(freight_forwarder, 'review_count') else 0
     except Exception:
         review_count = 0
+    
+    # Aggregate category scores from review_category_scores
+    try:
+        category_scores = freight_forwarder.category_scores_summary if hasattr(freight_forwarder, 'category_scores_summary') else {}
+    except Exception:
+        category_scores = {}
     
     # Create response manually to avoid SQL generation issues
     return FreightForwarderResponse(
@@ -142,6 +250,7 @@ async def get_freight_forwarder(
         headquarters_country=freight_forwarder.headquarters_country,
         average_rating=avg_rating,
         review_count=review_count,
+        category_scores_summary=category_scores,
         created_at=freight_forwarder.created_at
     )
 
@@ -207,6 +316,7 @@ async def create_freight_forwarder(
             headquarters_country=new_freight_forwarder.headquarters_country,
             average_rating=0.0,
             review_count=0,
+            category_scores_summary={},
             created_at=new_freight_forwarder.created_at
         )
         

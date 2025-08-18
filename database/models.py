@@ -52,22 +52,60 @@ class FreightForwarder(Base):
     
     @hybrid_property
     def average_rating(self):
-        """Calculate average rating from weighted reviews"""
+        """Calculate average rating from reviews.aggregate_rating"""
         if not self.reviews:
             return 0.0
         
-        total_weighted_rating = sum(review.weighted_rating or 0 for review in self.reviews if review.weighted_rating is not None)
-        total_weight = sum(review.review_weight or 0 for review in self.reviews if review.review_weight is not None)
+        # Use the aggregate_rating field from reviews
+        total_rating = sum(review.aggregate_rating or 0 for review in self.reviews if review.aggregate_rating is not None)
+        valid_reviews = sum(1 for review in self.reviews if review.aggregate_rating is not None)
         
-        if total_weight == 0:
+        if valid_reviews == 0:
             return 0.0
         
-        return total_weighted_rating / total_weight
+        return total_rating / valid_reviews
     
     @hybrid_property
     def review_count(self):
         """Get total number of reviews"""
         return len(self.reviews) if self.reviews else 0
+    
+    @hybrid_property
+    def category_scores_summary(self):
+        """Aggregate category scores from review_category_scores"""
+        if not self.reviews:
+            return {}
+        
+        category_totals = {}
+        category_counts = {}
+        
+        for review in self.reviews:
+            for category_score in review.category_scores:
+                category_id = category_score.category_id
+                category_name = category_score.category_name
+                
+                if category_id not in category_totals:
+                    category_totals[category_id] = 0
+                    category_counts[category_id] = 0
+                
+                # Add weighted rating (rating * weight)
+                weighted_rating = (category_score.rating or 0) * (category_score.weight or 1.0)
+                category_totals[category_id] += weighted_rating
+                category_counts[category_id] += 1
+        
+        # Calculate averages for each category
+        category_averages = {}
+        for category_id in category_totals:
+            if category_counts[category_id] > 0:
+                category_averages[category_id] = {
+                    "average_rating": category_totals[category_id] / category_counts[category_id],
+                    "total_reviews": category_counts[category_id],
+                    "category_name": next((score.category_name for review in self.reviews 
+                                        for score in review.category_scores 
+                                        if score.category_id == category_id), "Unknown")
+                }
+        
+        return category_averages
 
 class Branch(Base):
     __tablename__ = "branches"
