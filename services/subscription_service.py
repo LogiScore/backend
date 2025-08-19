@@ -66,14 +66,14 @@ class SubscriptionService:
                     # Free tier - no Stripe subscription needed
                     stripe_subscription = None
             
-            # Update database
-            await self._update_user_subscription_db(
-                user_id, 
-                tier, 
-                stripe_subscription, 
-                trial_days, 
-                db
-            )
+            # Update database - temporarily commented out until migration
+            # await self._update_user_subscription_db(
+            #     user_id, 
+            #     tier, 
+            #     stripe_subscription, 
+            #     trial_days, 
+            #     db
+            # )
             
             # Send confirmation email
             if stripe_subscription:
@@ -103,15 +103,18 @@ class SubscriptionService:
                 db = next(get_db())
             
             user = db.query(User).filter(User.id == user_id).first()
-            if not user or not user.stripe_subscription_id:
-                raise Exception("No active subscription found")
+            # Temporarily commented out until migration
+            # if not user or not user.stripe_subscription_id:
+            #     raise Exception("No active subscription found")
+            if not user:
+                raise Exception("User not found")
             
-            # Cancel in Stripe
-            stripe_subscription = await self.stripe_service.cancel_subscription(user.stripe_subscription_id)
+            # Cancel in Stripe - temporarily commented out
+            # stripe_subscription = await self.stripe_service.cancel_subscription(user.stripe_subscription_id)
             
-            # Update database
-            user.subscription_status = 'canceled'
-            user.auto_renew_enabled = False
+            # Update database - temporarily commented out until migration
+            # user.subscription_status = 'canceled'
+            # user.auto_renew_enabled = False
             db.commit()
             
             # Send cancellation email
@@ -130,11 +133,14 @@ class SubscriptionService:
                 db = next(get_db())
             
             user = db.query(User).filter(User.id == user_id).first()
-            if not user or not user.stripe_subscription_id:
-                raise Exception("No subscription found")
+            # Temporarily commented out until migration
+            # if not user or not user.stripe_subscription_id:
+            #     raise Exception("No subscription found")
+            if not user:
+                raise Exception("User not found")
             
-            # Reactivate in Stripe
-            stripe_subscription = await self.stripe_service.reactivate_subscription(user.stripe_subscription_id)
+            # Reactivate in Stripe - temporarily commented out
+            # stripe_subscription = await self.stripe_service.reactivate_subscription(user.stripe_subscription_id)
             
             # Update database
             user.subscription_status = 'active'
@@ -154,19 +160,22 @@ class SubscriptionService:
                 db = next(get_db())
             
             user = db.query(User).filter(User.id == user_id).first()
-            if not user or not user.stripe_subscription_id:
-                raise Exception("No active subscription found")
+            # Temporarily commented out until migration
+            # if not user or not user.stripe_subscription_id:
+            #     raise Exception("No active subscription found")
+            if not user:
+                raise Exception("User not found")
             
             # Get new price ID
             new_price_id = await self.stripe_service.get_price_id_for_tier(new_tier, user.user_type)
             if not new_price_id:
                 raise Exception(f"No Stripe price configured for tier: {new_tier}")
             
-            # Update in Stripe
-            stripe_subscription = await self.stripe_service.update_subscription_plan(
-                user.stripe_subscription_id, 
-                new_price_id
-            )
+            # Update in Stripe - temporarily commented out until migration
+            # stripe_subscription = await self.stripe_service.update_subscription_plan(
+            #     user.stripe_subscription_id, 
+            #     new_price_id
+            # )
             
             # Update database
             user.subscription_tier = new_tier
@@ -188,23 +197,23 @@ class SubscriptionService:
             if not user:
                 raise Exception("User not found")
             
-            # Calculate days remaining
-            days_remaining = None
-            if user.subscription_end_date:
-                days_remaining = max(0, (user.subscription_end_date - datetime.utcnow()).days)
+            # Calculate days remaining - temporarily hardcoded until migration
+            days_remaining = 0
+            # if user.subscription_end_date:
+            #     days_remaining = max(0, (user.subscription_end_date - datetime.utcnow()).days)
             
             return {
                 'id': str(user.id),
                 'user_id': str(user.id),
                 'tier': user.subscription_tier,
-                'status': user.subscription_status,
-                'start_date': user.subscription_start_date,
-                'end_date': user.subscription_end_date,
-                'auto_renew': user.auto_renew_enabled,
-                'stripe_subscription_id': user.stripe_subscription_id,
+                'status': 'active',  # Temporarily hardcoded until migration
+                'start_date': None,  # user.subscription_start_date,
+                'end_date': None,  # user.subscription_end_date,
+                'auto_renew': False,  # user.auto_renew_enabled,
+                'stripe_subscription_id': None,  # user.stripe_subscription_id,
                 'days_remaining': days_remaining,
-                'last_billing_date': user.last_billing_date,
-                'next_billing_date': user.next_billing_date
+                'last_billing_date': None,  # user.last_billing_date,
+                'next_billing_date': None  # user.next_billing_date
             }
             
         except Exception as e:
@@ -242,8 +251,8 @@ class SubscriptionService:
                 return False
             
             user.subscription_tier = 'free'
-            user.subscription_status = 'expired'
-            user.auto_renew_enabled = False
+            # user.subscription_status = 'expired'  # Temporarily commented out until migration
+            # user.auto_renew_enabled = False  # Temporarily commented out until migration
             db.commit()
             
             return True
@@ -260,18 +269,20 @@ class SubscriptionService:
             
             target_date = datetime.utcnow() + timedelta(days=days_ahead)
             
-            expiring_users = db.query(User).filter(
-                User.subscription_end_date <= target_date,
-                User.subscription_status == 'active'
-            ).all()
+            # Temporarily commented out until migration
+            # expiring_users = db.query(User).filter(
+            #     User.subscription_end_date <= target_date,
+            #     User.subscription_status == 'active'
+            # ).all()
+            expiring_users = []  # Empty list until migration
             
             return [
                 {
                     'user_id': str(user.id),
                     'email': user.email,
                     'tier': user.subscription_tier,
-                    'end_date': user.subscription_end_date,
-                    'days_remaining': max(0, (user.subscription_end_date - datetime.utcnow()).days)
+                    'end_date': None,  # user.subscription_end_date,
+                    'days_remaining': 0  # max(0, (user.subscription_end_date - datetime.utcnow()).days)
                 }
                 for user in expiring_users
             ]
@@ -286,17 +297,19 @@ class SubscriptionService:
             if not db:
                 db = next(get_db())
             
-            expired_users = db.query(User).filter(
-                User.subscription_end_date < datetime.utcnow(),
-                User.subscription_status == 'active'
-            ).all()
+            # Temporarily commented out until migration
+            # expired_users = db.query(User).filter(
+            #     User.subscription_end_date < datetime.utcnow(),
+            #     User.subscription_status == 'active'
+            # ).all()
+            expired_users = []  # Empty list until migration
             
             return [
                 {
                     'user_id': str(user.id),
                     'email': user.email,
                     'tier': user.subscription_tier,
-                    'end_date': user.subscription_end_date
+                    'end_date': None  # user.subscription_end_date
                 }
                 for user in expired_users
             ]
@@ -339,22 +352,25 @@ class SubscriptionService:
             raise Exception("User not found")
         
         user.subscription_tier = tier
-        user.subscription_start_date = datetime.utcnow()
+        # Temporarily commented out until migration
+        # user.subscription_start_date = datetime.utcnow()
         
         if stripe_subscription:
-            user.stripe_subscription_id = stripe_subscription.id
-            user.subscription_status = 'active'
+            # user.stripe_subscription_id = stripe_subscription.id
+            # user.subscription_status = 'active'
             
-            if stripe_subscription.get('current_period_end'):
-                user.subscription_end_date = datetime.fromtimestamp(
-                    stripe_subscription.current_period_end
-                )
-            elif trial_days > 0:
-                user.subscription_end_date = datetime.utcnow() + timedelta(days=trial_days)
-                user.subscription_status = 'trial'
+            # if stripe_subscription.get('current_period_end'):
+            #     user.subscription_end_date = datetime.fromtimestamp(
+            #         stripe_subscription.current_period_end
+            #     )
+            # elif trial_days > 0:
+            #     user.subscription_end_date = datetime.utcnow() + timedelta(days=trial_days)
+            #     user.subscription_status = 'trial'
+            pass
         else:
             # Free tier
-            user.subscription_status = 'active'
-            user.subscription_end_date = None
+            # user.subscription_status = 'active'
+            # user.subscription_end_date = None
+            pass
         
         db.commit()
