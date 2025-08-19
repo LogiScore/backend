@@ -3,6 +3,7 @@ import logging
 from typing import Optional
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, Email, To, Content, HtmlContent
+from datetime import datetime
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -454,6 +455,297 @@ class EmailService:
         except Exception as e:
             logger.error(f"Error sending review thank you email to {to_email}: {str(e)}")
             logger.info(f"FALLBACK: Review thank you email would be sent to {to_email}")
+            return True  # Return True for fallback mode
+
+    def get_routing_email(self, contact_reason: str) -> str:
+        """Get the appropriate email address based on contact reason"""
+        routing_map = {
+            "feedback": "feedback@logiscore.net",
+            "support": "support@logiscore.net",
+            "billing": "accounts@logiscore.net",
+            "reviews": "dispute@logiscore.net",
+            "privacy": "dpo@logiscore.net",
+            "general": "support@logiscore.net"
+        }
+        return routing_map.get(contact_reason.lower(), "support@logiscore.net")
+
+    async def send_contact_form_team_email(self, contact_data: dict, routing_email: str) -> bool:
+        """Send contact form email to the appropriate team"""
+        try:
+            if not self.api_key:
+                logger.info(f"FALLBACK: Contact form team email would be sent to {routing_email}")
+                return True
+            
+            subject = f"[Contact Form] {contact_data.get('subject', 'General Inquiry')}"
+            
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>New Contact Form Submission</title>
+                <style>
+                    body {{
+                        font-family: Arial, sans-serif;
+                        line-height: 1.6;
+                        color: #333;
+                        max-width: 600px;
+                        margin: 0 auto;
+                        padding: 20px;
+                    }}
+                    .header {{
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                        padding: 30px;
+                        text-align: center;
+                        border-radius: 10px 10px 0 0;
+                    }}
+                    .content {{
+                        background: #f8f9fa;
+                        padding: 30px;
+                        border-radius: 0 0 10px 10px;
+                    }}
+                    .contact-info {{
+                        background: white;
+                        border: 1px solid #dee2e6;
+                        border-radius: 8px;
+                        padding: 20px;
+                        margin: 20px 0;
+                    }}
+                    .contact-info h3 {{
+                        margin-top: 0;
+                        color: #495057;
+                    }}
+                    .contact-info p {{
+                        margin: 10px 0;
+                    }}
+                    .contact-info strong {{
+                        color: #495057;
+                    }}
+                    .message-content {{
+                        background: white;
+                        border: 1px solid #dee2e6;
+                        border-radius: 8px;
+                        padding: 20px;
+                        margin: 20px 0;
+                    }}
+                    .footer {{
+                        text-align: center;
+                        margin-top: 30px;
+                        padding-top: 20px;
+                        border-top: 1px solid #dee2e6;
+                        color: #6c757d;
+                        font-size: 14px;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>📧 New Contact Form Submission</h1>
+                    <p>Contact Reason: {contact_data.get('contact_reason', 'general').title()}</p>
+                </div>
+                
+                <div class="content">
+                    <div class="contact-info">
+                        <h3>👤 Contact Information</h3>
+                        <p><strong>Name:</strong> {contact_data.get('name', 'Not provided')}</p>
+                        <p><strong>Email:</strong> {contact_data.get('email', 'Not provided')}</p>
+                        <p><strong>Contact Reason:</strong> {contact_data.get('contact_reason', 'general').title()}</p>
+                        <p><strong>Subject:</strong> {contact_data.get('subject', 'No subject')}</p>
+                    </div>
+                    
+                    <div class="message-content">
+                        <h3>💬 Message</h3>
+                        <p>{contact_data.get('message', 'No message content').replace(chr(10), '<br>')}</p>
+                    </div>
+                    
+                    <p><strong>Submitted:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}</p>
+                    
+                    <p>Please respond to this inquiry within 24 hours.</p>
+                </div>
+                
+                <div class="footer">
+                    <p>This is an automated message from the LogiScore contact form system.</p>
+                    <p>&copy; 2025 LogiScore. All rights reserved.</p>
+                </div>
+            </body>
+            </html>
+            """
+            
+            # Create SendGrid message
+            message = Mail(
+                from_email=Email(self.from_email, self.from_name),
+                to_emails=To(routing_email),
+                subject=subject,
+                html_content=HtmlContent(html_content)
+            )
+            
+            # Send email
+            sg = SendGridAPIClient(self.api_key)
+            
+            # Set EU data residency if needed
+            if os.getenv('SENDGRID_EU_RESIDENCY', 'false').lower() == 'true':
+                sg.set_sendgrid_data_residency("eu")
+            
+            response = sg.send(message)
+            
+            if response.status_code == 202:
+                logger.info(f"Contact form team email sent successfully to {routing_email}")
+                return True
+            else:
+                logger.error(f"Failed to send contact form team email. Status code: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error sending contact form team email to {routing_email}: {str(e)}")
+            logger.info(f"FALLBACK: Contact form team email would be sent to {routing_email}")
+            return True  # Return True for fallback mode
+
+    async def send_contact_form_acknowledgment(self, contact_data: dict) -> bool:
+        """Send acknowledgment email to the user who submitted the contact form"""
+        try:
+            if not self.api_key:
+                logger.info(f"FALLBACK: Contact form acknowledgment would be sent to {contact_data.get('email')}")
+                return True
+            
+            subject = "Thank you for contacting LogiScore"
+            
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Thank you for contacting LogiScore</title>
+                <style>
+                    body {{
+                        font-family: Arial, sans-serif;
+                        line-height: 1.6;
+                        color: #333;
+                        max-width: 600px;
+                        margin: 0 auto;
+                        padding: 20px;
+                    }}
+                    .header {{
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                        padding: 30px;
+                        text-align: center;
+                        border-radius: 10px 10px 0 0;
+                    }}
+                    .content {{
+                        background: #f8f9fa;
+                        padding: 30px;
+                        border-radius: 0 0 10px 10px;
+                    }}
+                    .confirmation {{
+                        background: #d4edda;
+                        border: 1px solid #c3e6cb;
+                        border-radius: 8px;
+                        padding: 20px;
+                        margin: 20px 0;
+                        color: #155724;
+                    }}
+                    .next-steps {{
+                        background: white;
+                        border: 1px solid #dee2e6;
+                        border-radius: 8px;
+                        padding: 20px;
+                        margin: 20px 0;
+                    }}
+                    .cta-button {{
+                        display: inline-block;
+                        background: #28a745;
+                        color: white;
+                        padding: 15px 30px;
+                        text-decoration: none;
+                        border-radius: 5px;
+                        font-weight: bold;
+                        margin: 20px 0;
+                    }}
+                    .footer {{
+                        text-align: center;
+                        margin-top: 30px;
+                        padding-top: 20px;
+                        border-top: 1px solid #dee2e6;
+                        color: #6c757d;
+                        font-size: 14px;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>📧 Thank you for contacting LogiScore!</h1>
+                    <p>We've received your message</p>
+                </div>
+                
+                <div class="content">
+                    <h2>Hello {contact_data.get('name', 'there')}!</h2>
+                    
+                    <div class="confirmation">
+                        <h3>✅ Message Received</h3>
+                        <p>We've successfully received your contact form submission and our team will get back to you as soon as possible.</p>
+                    </div>
+                    
+                    <div class="next-steps">
+                        <h3>📋 What happens next?</h3>
+                        <ul>
+                            <li>Your message has been routed to our {contact_data.get('contact_reason', 'general').title()} team</li>
+                            <li>We typically respond within 24 hours during business days</li>
+                            <li>For urgent matters, please include "URGENT" in your subject line</li>
+                        </ul>
+                    </div>
+                    
+                    <p><strong>Your message details:</strong></p>
+                    <ul>
+                        <li><strong>Subject:</strong> {contact_data.get('subject', 'No subject')}</li>
+                        <li><strong>Contact Reason:</strong> {contact_data.get('contact_reason', 'general').title()}</li>
+                        <li><strong>Submitted:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}</li>
+                    </ul>
+                    
+                    <a href="https://logiscore.net" class="cta-button">Visit LogiScore</a>
+                    
+                    <p>If you have any additional questions or need immediate assistance, please don't hesitate to reach out.</p>
+                    
+                    <p>Best regards,<br>The LogiScore Team</p>
+                </div>
+                
+                <div class="footer">
+                    <p>This is an automated acknowledgment message. Please do not reply to this email.</p>
+                    <p>&copy; 2025 LogiScore. All rights reserved.</p>
+                </div>
+            </body>
+            </html>
+            """
+            
+            # Create SendGrid message
+            message = Mail(
+                from_email=Email(self.from_email, self.from_name),
+                to_emails=To(contact_data.get('email')),
+                subject=subject,
+                html_content=HtmlContent(html_content)
+            )
+            
+            # Send email
+            sg = SendGridAPIClient(self.api_key)
+            
+            # Set EU data residency if needed
+            if os.getenv('SENDGRID_EU_RESIDENCY', 'false').lower() == 'true':
+                sg.set_sendgrid_data_residency("eu")
+            
+            response = sg.send(message)
+            
+            if response.status_code == 202:
+                logger.info(f"Contact form acknowledgment sent successfully to {contact_data.get('email')}")
+                return True
+            else:
+                logger.error(f"Failed to send contact form acknowledgment. Status code: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error sending contact form acknowledgment to {contact_data.get('email')}: {str(e)}")
+            logger.info(f"FALLBACK: Contact form acknowledgment would be sent to {contact_data.get('email')}")
             return True  # Return True for fallback mode
 
 # Create singleton instance

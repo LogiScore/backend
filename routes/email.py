@@ -5,6 +5,8 @@ from database.models import Review, ReviewCategoryScore, FreightForwarder, User
 from email_service import email_service
 from typing import List
 import logging
+from pydantic import BaseModel, EmailStr, validator
+import re
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -14,6 +16,92 @@ router = APIRouter()
 class ReviewThankYouRequest:
     def __init__(self, review_id: str):
         self.review_id = review_id
+
+class ContactFormData(BaseModel):
+    name: str
+    email: EmailStr
+    contact_reason: str
+    subject: str
+    message: str
+    
+    @validator('name')
+    def validate_name(cls, v):
+        if not v or len(v.strip()) < 2:
+            raise ValueError('Name must be at least 2 characters long')
+        if len(v.strip()) > 100:
+            raise ValueError('Name must be less than 100 characters')
+        return v.strip()
+    
+    @validator('contact_reason')
+    def validate_contact_reason(cls, v):
+        valid_reasons = ['feedback', 'support', 'billing', 'reviews', 'privacy', 'general']
+        if v.lower() not in valid_reasons:
+            raise ValueError(f'Contact reason must be one of: {", ".join(valid_reasons)}')
+        return v.lower()
+    
+    @validator('subject')
+    def validate_subject(cls, v):
+        if not v or len(v.strip()) < 5:
+            raise ValueError('Subject must be at least 5 characters long')
+        if len(v.strip()) > 200:
+            raise ValueError('Subject must be less than 200 characters')
+        return v.strip()
+    
+    @validator('message')
+    def validate_message(cls, v):
+        if not v or len(v.strip()) < 10:
+            raise ValueError('Message must be at least 10 characters long')
+        if len(v.strip()) > 2000:
+            raise ValueError('Message must be less than 2000 characters')
+        # Basic XSS protection - remove script tags
+        v = re.sub(r'<script[^>]*>.*?</script>', '', v, flags=re.IGNORECASE | re.DOTALL)
+        return v.strip()
+
+@router.post("/contact-form")
+async def send_contact_form(contact_data: ContactFormData):
+    """
+    Handle contact form submissions with intelligent email routing and acknowledgment sending.
+    
+    Routes messages to appropriate teams based on contact_reason:
+    - feedback -> feedback@logiscore.net
+    - support -> support@logiscore.net
+    - billing -> accounts@logiscore.net
+    - reviews -> dispute@logiscore.net
+    - privacy -> dpo@logiscore.net
+    - general -> support@logiscore.net (default)
+    """
+    try:
+        logger.info(f"Contact form submission received from {contact_data.email} - Reason: {contact_data.contact_reason}")
+        
+        # Convert to dict for email service
+        contact_dict = contact_data.dict()
+        
+        # 1. Determine routing email based on contact_reason
+        routing_email = email_service.get_routing_email(contact_data.contact_reason)
+        logger.info(f"Routing contact form to: {routing_email}")
+        
+        # 2. Send email to appropriate team
+        team_email_sent = await email_service.send_contact_form_team_email(contact_dict, routing_email)
+        
+        # 3. Send acknowledgment to user
+        ack_email_sent = await email_service.send_contact_form_acknowledgment(contact_dict)
+        
+        # Log success
+        logger.info(f"Contact form processed successfully for {contact_data.email}. Team email: {team_email_sent}, Acknowledgment: {ack_email_sent}")
+        
+        return {
+            "message": "Contact form submitted successfully",
+            "email_sent": team_email_sent,
+            "acknowledgment_sent": ack_email_sent,
+            "routed_to": routing_email
+        }
+        
+    except Exception as e:
+        logger.error(f"Error processing contact form from {contact_data.email}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to process contact form. Please try again later."
+        )
 
 @router.post("/review-thank-you")
 async def send_review_thank_you_email(
