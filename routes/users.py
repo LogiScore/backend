@@ -40,6 +40,11 @@ class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
 
+class UpdateProfileRequest(BaseModel):
+    username: Optional[str] = None
+    full_name: Optional[str] = None
+    company_name: Optional[str] = None
+
 class ForgotPasswordRequest(BaseModel):
     email: str
 
@@ -173,6 +178,55 @@ async def get_user(
         raise HTTPException(status_code=404, detail="User not found")
     return UserResponse.from_orm(user)
 
+@router.get("/check-type/{email}")
+async def check_user_type(
+    email: str,
+    db: Session = Depends(get_db)
+):
+    """Check user type by email (for debugging)"""
+    try:
+        user = db.query(User).filter(User.email == email.lower().strip()).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return {
+            "email": user.email,
+            "user_type": user.user_type,
+            "username": user.username,
+            "company_name": user.company_name,
+            "is_verified": user.is_verified
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to check user type: {str(e)}"
+        )
+
+@router.get("/debug/type/{email}")
+async def debug_user_type(
+    email: str,
+    db: Session = Depends(get_db)
+):
+    """Debug endpoint to check user type by email (no auth required)"""
+    try:
+        user = db.query(User).filter(User.email == email.lower().strip()).first()
+        if not user:
+            return {"error": "User not found", "email": email}
+        
+        return {
+            "found": True,
+            "email": user.email,
+            "user_type": user.user_type,
+            "username": user.username,
+            "company_name": user.company_name,
+            "is_verified": user.is_verified,
+            "subscription_tier": user.subscription_tier
+        }
+    except Exception as e:
+        return {"error": str(e), "email": email}
+
 @router.post("/signup", response_model=TokenResponse)
 async def signup(
     signup_request: SignupRequest,
@@ -298,6 +352,34 @@ async def change_password(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Password change failed: {str(e)}"
+        )
+
+@router.put("/profile", response_model=UserResponse)
+async def update_profile(
+    profile_update: UpdateProfileRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update user profile information (excluding user_type for security)"""
+    try:
+        # Update only allowed fields
+        if profile_update.username is not None:
+            current_user.username = profile_update.username
+        if profile_update.full_name is not None:
+            current_user.full_name = profile_update.full_name
+        if profile_update.company_name is not None:
+            current_user.company_name = profile_update.company_name
+        
+        db.commit()
+        db.refresh(current_user)
+        
+        return UserResponse.from_orm(current_user)
+    except Exception as e:
+        import logging
+        logging.error(f"Profile update error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Profile update failed: {str(e)}"
         )
 
 @router.post("/forgot-password")

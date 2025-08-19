@@ -17,6 +17,8 @@ router = APIRouter()
 
 class EmailAuthRequest(BaseModel):
     email: str
+    user_type: Optional[str] = "shipper"  # Allow users to specify their type
+    company_name: Optional[str] = None
 
 class CodeVerificationRequest(BaseModel):
     email: str
@@ -52,6 +54,15 @@ async def send_verification_code(
     """Send verification code to user's email"""
     try:
         email = request.email.lower().strip()
+        user_type = request.user_type or "shipper"  # Default to shipper if not specified
+        company_name = request.company_name
+        
+        # Validate user_type
+        if user_type not in ["shipper", "forwarder", "admin"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid user type. Must be 'shipper', 'forwarder', or 'admin'"
+            )
         
         # Check if user exists
         user = db.query(User).filter(User.email == email).first()
@@ -79,12 +90,13 @@ async def send_verification_code(
                     username = f"{base_username}_{uuid.uuid4().hex[:8]}"
                     break
             
-            # Create new user
+            # Create new user with proper user_type
             user = User(
                 id=str(uuid.uuid4()),
                 email=email,
                 username=username,
-                user_type="shipper",  # Default user type
+                user_type=user_type,  # Use the specified user type
+                company_name=company_name,
                 subscription_tier="free",
                 is_verified=False,
                 is_active=True,

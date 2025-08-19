@@ -73,11 +73,17 @@ class AdminCompany(BaseModel):
 
 class SubscriptionUpdate(BaseModel):
     tier: str
-    comment: str
-    duration: int
-    is_paid: bool
     payment_method_id: Optional[str] = None
-    trial_days: int = 0
+    trial_days: Optional[int] = 0
+    is_paid: Optional[bool] = False
+
+class UserUpdateRequest(BaseModel):
+    username: Optional[str] = None
+    full_name: Optional[str] = None
+    company_name: Optional[str] = None
+    user_type: Optional[str] = None
+    is_verified: Optional[bool] = None
+    is_active: Optional[bool] = None
 
 class CompanyCreate(BaseModel):
     name: str
@@ -355,6 +361,56 @@ async def update_user_subscription(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update subscription: {str(e)}"
+        )
+
+@router.put("/users/{user_id}", response_model=AdminUser)
+async def update_user(
+    user_id: str,
+    user_update: UserUpdateRequest,
+    admin_user: User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Update user information (admin only)"""
+    try:
+        # Get user to update
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Update fields if provided
+        if user_update.username is not None:
+            user.username = user_update.username
+        if user_update.full_name is not None:
+            user.full_name = user_update.full_name
+        if user_update.company_name is not None:
+            user.company_name = user_update.company_name
+        if user_update.user_type is not None:
+            # Validate user_type
+            if user_update.user_type not in ["shipper", "forwarder", "admin"]:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid user type. Must be 'shipper', 'forwarder', or 'admin'"
+                )
+            user.user_type = user_update.user_type
+        if user_update.is_verified is not None:
+            user.is_verified = user_update.is_verified
+        if user_update.is_active is not None:
+            user.is_active = user_update.is_active
+        
+        db.commit()
+        db.refresh(user)
+        
+        return AdminUser.from_orm(user)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update user: {str(e)}"
         )
 
 @router.get("/reviews", response_model=List[AdminReview])
