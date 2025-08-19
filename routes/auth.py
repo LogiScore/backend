@@ -66,11 +66,24 @@ async def send_verification_code(
             user.verification_code = code
             user.verification_code_expires = datetime.now(timezone.utc) + timedelta(minutes=expires_in)
         else:
+            # Generate unique username
+            base_username = email.split('@')[0]
+            username = base_username
+            counter = 1
+            
+            # Check if username exists and generate unique one if needed
+            while db.query(User).filter(User.username == username).first():
+                username = f"{base_username}{counter}"
+                counter += 1
+                if counter > 100:  # Prevent infinite loop
+                    username = f"{base_username}_{uuid.uuid4().hex[:8]}"
+                    break
+            
             # Create new user
             user = User(
                 id=str(uuid.uuid4()),
                 email=email,
-                username=email.split('@')[0],  # Use email prefix as username
+                username=username,
                 user_type="shipper",  # Default user type
                 subscription_tier="free",
                 is_verified=False,

@@ -12,7 +12,7 @@ class User(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     github_id = Column(String(255), unique=True, nullable=True)
     email = Column(String(255), unique=True, nullable=False)
-    username = Column(String(100), unique=True, nullable=True)
+    username = Column(String(100), unique=False, nullable=True)
     full_name = Column(String(255), nullable=True)
     avatar_url = Column(Text, nullable=True)
     company_name = Column(String(255), nullable=True)
