@@ -46,7 +46,7 @@ app.add_middleware(
         "http://127.0.0.1:4173",
         "*"  # Allow all origins for development (remove in production)
     ],
-    allow_credentials=False,  # Changed to False to avoid CORS issues
+    allow_credentials=True,  # Required for JWT authentication headers
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
     expose_headers=["*"],

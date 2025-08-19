@@ -97,6 +97,7 @@ class AnalyticsData(BaseModel):
 
 # Helper function to check if user is admin
 async def get_admin_user(current_user: User = Depends(get_current_user)):
+    print(f"DEBUG: get_admin_user called with user: {current_user.email}, type: {current_user.user_type}")  # Debug log
     if current_user.user_type != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -104,11 +105,37 @@ async def get_admin_user(current_user: User = Depends(get_current_user)):
         )
     return current_user
 
+@router.get("/test-auth")
+async def test_admin_auth(admin_user: User = Depends(get_admin_user)):
+    """Test endpoint to verify admin authentication is working"""
+    return {
+        "message": "Admin authentication successful",
+        "user": {
+            "id": str(admin_user.id),
+            "email": admin_user.email,
+            "user_type": admin_user.user_type
+        }
+    }
+
+@router.get("/test-token")
+async def test_token_validation(current_user: User = Depends(get_current_user)):
+    """Test endpoint to verify token validation without admin requirements"""
+    return {
+        "message": "Token validation successful",
+        "user": {
+            "id": str(current_user.id),
+            "email": current_user.email,
+            "user_type": current_user.user_type
+        }
+    }
+
 @router.get("/dashboard", response_model=DashboardStats)
 async def get_dashboard_stats(
     admin_user: User = Depends(get_admin_user),
     db: Session = Depends(get_db)
 ):
+    """Get dashboard statistics"""
+    print(f"DEBUG: Dashboard accessed by admin user: {admin_user.email}")  # Debug log
     """Get dashboard statistics"""
     try:
         # Count total users

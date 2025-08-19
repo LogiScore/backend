@@ -39,7 +39,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
@@ -64,18 +64,25 @@ async def get_current_user(
     )
     
     try:
+        print(f"DEBUG: Validating token: {credentials.credentials[:20]}...")  # Debug log
         payload = verify_token(credentials.credentials)
         if payload is None:
+            print("DEBUG: Token verification failed - payload is None")  # Debug log
             raise credentials_exception
         user_id: str = payload.get("sub")
         if user_id is None:
+            print("DEBUG: Token verification failed - no user_id in payload")  # Debug log
             raise credentials_exception
-    except JWTError:
+        print(f"DEBUG: Token verified for user_id: {user_id}")  # Debug log
+    except JWTError as e:
+        print(f"DEBUG: JWT error during token verification: {e}")  # Debug log
         raise credentials_exception
     
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:
+        print(f"DEBUG: User not found in database for user_id: {user_id}")  # Debug log
         raise credentials_exception
+    print(f"DEBUG: User found: {user.email}")  # Debug log
     return user
 
 async def get_current_user_optional(
