@@ -89,6 +89,16 @@ app.include_router(locations.router, prefix="/api/locations", tags=["locations"]
 app.include_router(email.router, prefix="/api/email", tags=["email"])  # Email API for sending emails
 app.include_router(admin.router, prefix="/admin", tags=["admin"])  # Admin API for 8x7k9m2p dashboard
 
+@app.get("/api/migrate-db")
+async def migrate_database():
+    """Migrate database to add missing subscription fields"""
+    try:
+        from database.migrate_subscription_fields import safe_migrate_essential_fields
+        safe_migrate_essential_fields()
+        return {"message": "Database migration completed successfully"}
+    except Exception as e:
+        return {"error": f"Migration failed: {str(e)}"}
+
 # Add backward compatibility routes for auth endpoints
 app.include_router(auth.router, prefix="/auth", tags=["auth-compat"])
 

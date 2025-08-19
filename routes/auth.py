@@ -66,19 +66,44 @@ async def send_verification_code(
             user.verification_code = code
             user.verification_code_expires = datetime.now(timezone.utc) + timedelta(minutes=expires_in)
         else:
-            # Create new user
-            user = User(
-                id=str(uuid.uuid4()),
-                email=email,
-                username=email.split('@')[0],  # Use email prefix as username
-                user_type="shipper",  # Default user type
-                subscription_tier="free",
-                is_verified=False,
-                is_active=True,
-                verification_code=code,
-                verification_code_expires=datetime.now(timezone.utc) + timedelta(minutes=expires_in)
-            )
-            db.add(user)
+            # Create new user with minimal fields to avoid database schema issues
+            try:
+                user = User(
+                    id=str(uuid.uuid4()),
+                    email=email,
+                    username=email.split('@')[0],  # Use email prefix as username
+                    user_type="shipper",  # Default user type
+                    subscription_tier="free",
+                    is_verified=False,
+                    is_active=True,
+                    verification_code=code,
+                    verification_code_expires=datetime.now(timezone.utc) + timedelta(minutes=expires_in)
+                )
+                db.add(user)
+            except Exception as db_error:
+                # If there's a database schema issue, create user with only essential fields
+                print(f"Database schema issue, creating minimal user: {db_error}")
+                # Use raw SQL to create user with only essential fields
+                from sqlalchemy import text
+                user_id = str(uuid.uuid4())
+                db.execute(text("""
+                    INSERT INTO users (id, email, username, user_type, subscription_tier, 
+                                    is_verified, is_active, verification_code, verification_code_expires)
+                    VALUES (:id, :email, :username, :user_type, :subscription_tier,
+                           :is_verified, :is_active, :verification_code, :verification_code_expires)
+                """), {
+                    "id": user_id,
+                    "email": email,
+                    "username": email.split('@')[0],
+                    "user_type": "shipper",
+                    "subscription_tier": "free",
+                    "is_verified": False,
+                    "is_active": True,
+                    "verification_code": code,
+                    "verification_code_expires": datetime.now(timezone.utc) + timedelta(minutes=expires_in)
+                })
+                # Fetch the created user
+                user = db.query(User).filter(User.id == user_id).first()
         
         db.commit()
         
