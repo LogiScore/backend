@@ -25,15 +25,15 @@ class User(Base):
     subscription_tier = Column(String(20), default='free')
     stripe_customer_id = Column(String(255), nullable=True)
     
-    # New comprehensive subscription fields
-    subscription_start_date = Column(DateTime(timezone=True), nullable=True)
-    subscription_end_date = Column(DateTime(timezone=True), nullable=True)
-    auto_renew_enabled = Column(Boolean, default=False)
-    payment_method_id = Column(String(255), nullable=True)
-    stripe_subscription_id = Column(String(255), nullable=True)
-    last_billing_date = Column(DateTime(timezone=True), nullable=True)
-    next_billing_date = Column(DateTime(timezone=True), nullable=True)
-    subscription_status = Column(String(20), default='active')  # active, past_due, canceled, expired, trial
+    # Temporarily comment out new subscription fields until migration is complete
+    # subscription_start_date = Column(DateTime(timezone=True), nullable=True)
+    # subscription_end_date = Column(DateTime(timezone=True), nullable=True)
+    # auto_renew_enabled = Column(Boolean, default=False)
+    # payment_method_id = Column(String(255), nullable=True)
+    # stripe_subscription_id = Column(String(255), nullable=True)
+    # last_billing_date = Column(DateTime(timezone=True), nullable=True)
+    # next_billing_date = Column(DateTime(timezone=True), nullable=True)
+    # subscription_status = Column(String(20), default='active')  # active, past_due, canceled, expired, trial
     
     is_verified = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
