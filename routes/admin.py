@@ -76,6 +76,8 @@ class SubscriptionUpdate(BaseModel):
     comment: str
     duration: int
     is_paid: bool
+    payment_method_id: Optional[str] = None
+    trial_days: int = 0
 
 class CompanyCreate(BaseModel):
     name: str
@@ -319,8 +321,12 @@ async def update_user_subscription(
     admin_user: User = Depends(get_admin_user),
     db: Session = Depends(get_db)
 ):
-    """Update user subscription"""
+    """Update user subscription with Stripe integration"""
     try:
+        from services.subscription_service import SubscriptionService
+        subscription_service = SubscriptionService()
+        
+        # Get user first
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise HTTPException(
@@ -328,17 +334,24 @@ async def update_user_subscription(
                 detail="User not found"
             )
         
-        # Update subscription tier
-        user.subscription_tier = subscription_update.tier
+        # Create subscription using the service
+        subscription_result = await subscription_service.create_subscription(
+            user_id=user_id,
+            tier=subscription_update.tier,
+            user_type=user.user_type,
+            payment_method_id=subscription_update.payment_method_id,
+            trial_days=subscription_update.trial_days,
+            is_paid=subscription_update.is_paid,
+            db=db
+        )
         
-        # In a real app, you would also update subscription details in a separate table
-        # For now, we'll just update the tier
+        return {
+            "message": "Subscription updated successfully",
+            "subscription_id": subscription_result['subscription_id'],
+            "status": subscription_result['status']
+        }
         
-        db.commit()
-        
-        return {"message": "Subscription updated successfully"}
     except Exception as e:
-        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update subscription: {str(e)}"

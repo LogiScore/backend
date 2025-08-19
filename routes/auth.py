@@ -6,14 +6,12 @@ from datetime import datetime, timedelta, timezone
 import uuid
 import random
 import string
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 import os
 
 from database.database import get_db
 from database.models import User
 from auth.auth import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
+from email_service import email_service
 
 router = APIRouter()
 
@@ -33,55 +31,15 @@ class CodeVerificationResponse(BaseModel):
     token_type: str
     user: dict
 
-# Email configuration
-SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USERNAME = os.getenv("SMTP_USERNAME", "")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
-FROM_EMAIL = os.getenv("FROM_EMAIL", "noreply@logiscore.com")
-
 def generate_verification_code() -> str:
     """Generate a 6-digit verification code"""
     return ''.join(random.choices(string.digits, k=6))
 
-def send_verification_email(email: str, code: str, expires_in: int) -> bool:
-    """Send verification code email"""
+async def send_verification_email(email: str, code: str, expires_in: int) -> bool:
+    """Send verification code email using SendGrid"""
     try:
-        # Create message
-        msg = MIMEMultipart()
-        msg['From'] = FROM_EMAIL
-        msg['To'] = email
-        msg['Subject'] = "LogiScore Verification Code"
-        
-        # Email body
-        body = f"""
-        <html>
-        <body>
-            <h2>LogiScore Verification Code</h2>
-            <p>Your verification code is: <strong>{code}</strong></p>
-            <p>This code will expire in {expires_in} minutes.</p>
-            <p>If you didn't request this code, please ignore this email.</p>
-            <br>
-            <p>Best regards,<br>The LogiScore Team</p>
-        </body>
-        </html>
-        """
-        
-        msg.attach(MIMEText(body, 'html'))
-        
-        # Send email
-        if SMTP_USERNAME and SMTP_PASSWORD:
-            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-            server.starttls()
-            server.login(SMTP_USERNAME, SMTP_PASSWORD)
-            server.send_message(msg)
-            server.quit()
-            return True
-        else:
-            # For development/testing, just print the code
-            print(f"Verification code for {email}: {code}")
-            return True
-            
+        # Use the SendGrid email service
+        return await email_service.send_verification_code(email, code)
     except Exception as e:
         print(f"Failed to send email: {e}")
         return False
@@ -125,7 +83,7 @@ async def send_verification_code(
         db.commit()
         
         # Send verification email
-        if send_verification_email(email, code, expires_in):
+        if await send_verification_email(email, code, expires_in):
             return EmailAuthResponse(
                 message="Verification code sent to your email",
                 expires_in=expires_in

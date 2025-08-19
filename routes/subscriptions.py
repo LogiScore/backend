@@ -2,29 +2,52 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Optional
 from pydantic import BaseModel
-import stripe
-import os
 from datetime import datetime, timedelta
+import logging
+import stripe
 
 from database.database import get_db
 from database.models import User
 from auth.auth import get_current_user
+from services.subscription_service import SubscriptionService
+from services.stripe_service import StripeService
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
-# Initialize Stripe
-stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+# Initialize services lazily to avoid import-time errors
+subscription_service = None
+stripe_service = None
+
+def get_subscription_service():
+    global subscription_service
+    if subscription_service is None:
+        subscription_service = SubscriptionService()
+    return subscription_service
+
+def get_stripe_service():
+    global stripe_service
+    if stripe_service is None:
+        stripe_service = StripeService()
+    return stripe_service
 
 class SubscriptionRequest(BaseModel):
     plan_id: str
     plan_name: str
     user_type: str
+    payment_method_id: Optional[str] = None
+    trial_days: int = 0
 
 class SubscriptionResponse(BaseModel):
     subscription_id: str
     client_secret: Optional[str] = None
     checkout_url: Optional[str] = None
     message: str
+    tier: str
+    status: str
+
+class SubscriptionCancelRequest(BaseModel):
+    reason: Optional[str] = None
 
 @router.post("/create", response_model=SubscriptionResponse)
 async def create_subscription(
@@ -41,25 +64,102 @@ async def create_subscription(
                 detail=f"This plan is only available for {subscription_request.user_type}s"
             )
         
-        # For now, we'll simulate the subscription creation
-        # In a real implementation, you would integrate with Stripe here
+        # Extract tier from plan name
+        tier = subscription_request.plan_name.lower().replace(' ', '_')
         
-        # Update user subscription in database
-        current_user.subscription_tier = subscription_request.plan_name.lower().replace(' ', '_')
-        current_user.updated_at = datetime.utcnow()
-        
-        db.commit()
+        # Create subscription using the service
+        subscription_service = get_subscription_service()
+        subscription_result = await subscription_service.create_subscription(
+            user_id=str(current_user.id),
+            tier=tier,
+            user_type=current_user.user_type,
+            payment_method_id=subscription_request.payment_method_id,
+            trial_days=subscription_request.trial_days,
+            is_paid=subscription_request.payment_method_id is not None,
+            db=db
+        )
         
         return SubscriptionResponse(
-            subscription_id="simulated_subscription_id",
-            message=f"Successfully upgraded to {subscription_request.plan_name}!"
+            subscription_id=subscription_result['subscription_id'],
+            message=f"Successfully upgraded to {subscription_request.plan_name}!",
+            tier=subscription_result['tier'],
+            status=subscription_result['status']
         )
         
     except Exception as e:
-        db.rollback()
+        logger.error(f"Failed to create subscription: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create subscription: {str(e)}"
+        )
+
+@router.post("/cancel")
+async def cancel_subscription(
+    cancel_request: SubscriptionCancelRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Cancel current subscription"""
+    try:
+        subscription_service = get_subscription_service()
+        result = await subscription_service.cancel_subscription(
+            user_id=str(current_user.id),
+            db=db
+        )
+        
+        return {"message": "Subscription canceled successfully"}
+        
+    except Exception as e:
+        logger.error(f"Failed to cancel subscription: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to cancel subscription: {str(e)}"
+        )
+
+@router.post("/reactivate")
+async def reactivate_subscription(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Reactivate canceled subscription"""
+    try:
+        subscription_service = get_subscription_service()
+        result = await subscription_service.reactivate_subscription(
+            user_id=str(current_user.id),
+            db=db
+        )
+        
+        return {"message": "Subscription reactivated successfully"}
+        
+    except Exception as e:
+        logger.error(f"Failed to reactivate subscription: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to reactivate subscription: {str(e)}"
+        )
+
+@router.put("/upgrade")
+async def upgrade_subscription(
+    new_tier: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Upgrade subscription to different plan"""
+    try:
+        subscription_service = get_subscription_service()
+        result = await subscription_service.update_subscription_plan(
+            user_id=str(current_user.id),
+            new_tier=new_tier,
+            db=db
+        )
+        
+        return {"message": "Subscription plan updated successfully"}
+        
+    except Exception as e:
+        logger.error(f"Failed to upgrade subscription: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upgrade subscription: {str(e)}"
         )
 
 @router.get("/plans")
@@ -68,112 +168,113 @@ async def get_subscription_plans(
 ):
     """Get available subscription plans for the user's type"""
     try:
-        # Define plans based on user type
+        # Define plans based on user type - Updated to match actual Stripe products
         plans = {
             "shipper": [
                 {
-                    "id": "shipper-basic",
-                    "name": "Shipper Basic",
-                    "description": "Essential features for small to medium shippers",
-                    "price": 29,
+                    "id": "shipper_monthly",
+                    "name": "Shipper Monthly Subscription",
+                    "description": "Monthly subscription to LogiScore.net for shippers",
+                    "price": 0,  # Will be updated with actual price from Stripe
                     "currency": "USD",
                     "billing_cycle": "monthly",
+                    "stripe_price_id": stripe_service.STRIPE_PRICE_IDS.get('shipper_monthly'),
+                    "stripe_product_id": "prod_StYy4QPzGhoMQU",
                     "features": [
                         "Access to freight forwarder reviews",
-                        "Basic search and filtering",
+                        "Advanced search and filtering",
                         "Contact information for forwarders",
+                        "Analytics and reporting",
                         "Email support"
                     ]
                 },
                 {
-                    "id": "shipper-premium",
-                    "name": "Shipper Premium",
-                    "description": "Advanced features for growing businesses",
-                    "price": 79,
+                    "id": "shipper_annual",
+                    "name": "Shipper Annual Subscription",
+                    "description": "Annual subscription to LogiScore.net for shippers",
+                    "price": 0,  # Will be updated with actual price from Stripe
                     "currency": "USD",
-                    "billing_cycle": "monthly",
+                    "billing_cycle": "yearly",
                     "is_popular": True,
+                    "stripe_price_id": stripe_service.STRIPE_PRICE_IDS.get('shipper_annual'),
+                    "stripe_product_id": "prod_StZ0qjHzGSSZZ9",
                     "features": [
-                        "All Basic features",
+                        "All Monthly features",
+                        "2 months free (annual billing)",
                         "Priority customer support",
-                        "Advanced analytics and reporting",
-                        "Custom alerts and notifications",
-                        "API access for integrations",
-                        "Dedicated account manager"
-                    ]
-                },
-                {
-                    "id": "shipper-enterprise",
-                    "name": "Shipper Enterprise",
-                    "description": "Full-featured solution for large enterprises",
-                    "price": 199,
-                    "currency": "USD",
-                    "billing_cycle": "monthly",
-                    "features": [
-                        "All Premium features",
-                        "White-label solutions",
-                        "Custom integrations",
-                        "24/7 phone support",
-                        "Advanced security features",
-                        "Multi-user management"
+                        "Advanced analytics dashboard",
+                        "API access for integrations"
                     ]
                 }
             ],
             "forwarder": [
                 {
-                    "id": "forwarder-basic",
-                    "name": "Forwarder Basic",
-                    "description": "Essential features for freight forwarders",
-                    "price": 49,
+                    "id": "forwarder_monthly",
+                    "name": "Forwarder Monthly Subscription",
+                    "description": "Monthly subscription to LogiScore.net for forwarders",
+                    "price": 0,  # Will be updated with actual price from Stripe
                     "currency": "USD",
                     "billing_cycle": "monthly",
+                    "stripe_price_id": stripe_service.STRIPE_PRICE_IDS.get('forwarder_monthly'),
+                    "stripe_product_id": "prod_StZ1HjEEPrZ8oo",
                     "features": [
                         "Company profile listing",
-                        "Basic review management",
+                        "Review management",
                         "Customer inquiry responses",
+                        "Basic analytics",
                         "Email support"
                     ]
                 },
                 {
-                    "id": "forwarder-premium",
-                    "name": "Forwarder Premium",
-                    "description": "Advanced features for established forwarders",
-                    "price": 99,
+                    "id": "forwarder_annual",
+                    "name": "Forwarder Annual Subscription",
+                    "description": "Annual subscription to LogiScore.net for forwarders",
+                    "price": 0,  # Will be updated with actual price from Stripe
                     "currency": "USD",
-                    "billing_cycle": "monthly",
-                    "is_popular": True,
+                    "billing_cycle": "yearly",
+                    "stripe_price_id": stripe_service.STRIPE_PRICE_IDS.get('forwarder_annual'),
+                    "stripe_product_id": "prod_StZ2pVrOSMVZIn",
                     "features": [
-                        "All Basic features",
+                        "All Monthly features",
+                        "2 months free (annual billing)",
                         "Advanced analytics dashboard",
-                        "Review response automation",
                         "Priority listing placement",
-                        "Marketing tools and insights",
-                        "Dedicated account manager"
+                        "Marketing tools and insights"
                     ]
                 },
                 {
-                    "id": "forwarder-enterprise",
-                    "name": "Forwarder Enterprise",
-                    "description": "Complete solution for large forwarders",
-                    "price": 299,
+                    "id": "forwarder_annual_plus",
+                    "name": "Forwarder Annual Subscription Plus",
+                    "description": "Annual Plus subscription to LogiScore.net for forwarders",
+                    "price": 0,  # Will be updated with actual price from Stripe
                     "currency": "USD",
-                    "billing_cycle": "monthly",
+                    "billing_cycle": "yearly",
+                    "is_popular": True,
+                    "stripe_price_id": stripe_service.STRIPE_PRICE_IDS.get('forwarder_annual_plus'),
+                    "stripe_product_id": "prod_StZ3890Xh8lQCZ",
                     "features": [
-                        "All Premium features",
-                        "Custom branding options",
+                        "All Annual features",
+                        "Premium listing placement",
                         "Advanced API access",
-                        "24/7 phone support",
-                        "Multi-location management",
-                        "Advanced dispute resolution tools"
+                        "Custom branding options",
+                        "Priority support",
+                        "Multi-location management"
                     ]
                 }
             ]
         }
         
         user_plans = plans.get(current_user.user_type, [])
+        
+        # Add Stripe price IDs if available
+        stripe_service = get_stripe_service()
+        for plan in user_plans:
+            plan['stripe_price_id'] = stripe_service.STRIPE_PRICE_IDS.get(plan['id'])
+        
         return {"plans": user_plans}
         
     except Exception as e:
+        logger.error(f"Failed to get subscription plans: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get subscription plans: {str(e)}"
@@ -181,18 +282,49 @@ async def get_subscription_plans(
 
 @router.get("/current")
 async def get_current_subscription(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """Get the user's current subscription details"""
     try:
-        return {
-            "subscription_tier": current_user.subscription_tier,
-            "user_type": current_user.user_type,
-            "created_at": current_user.created_at,
-            "updated_at": current_user.updated_at
-        }
+        subscription_service = get_subscription_service()
+        subscription = await subscription_service.get_user_subscription(
+            user_id=str(current_user.id),
+            db=db
+        )
+        
+        return subscription
+        
     except Exception as e:
+        logger.error(f"Failed to get current subscription: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get current subscription: {str(e)}"
+        )
+
+@router.get("/billing-portal")
+async def get_billing_portal_url(
+    current_user: User = Depends(get_current_user)
+):
+    """Get Stripe billing portal URL for customer"""
+    try:
+        if not current_user.stripe_customer_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No Stripe customer found"
+            )
+        
+        # Create billing portal session
+        session = stripe.billing_portal.Session.create(
+            customer=current_user.stripe_customer_id,
+            return_url="https://logiscore.com/account"
+        )
+        
+        return {"url": session.url}
+        
+    except Exception as e:
+        logger.error(f"Failed to create billing portal session: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create billing portal session: {str(e)}"
         ) 

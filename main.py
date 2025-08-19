@@ -89,6 +89,13 @@ app.include_router(locations.router, prefix="/api/locations", tags=["locations"]
 app.include_router(email.router, prefix="/api/email", tags=["email"])  # Email API for sending emails
 app.include_router(admin.router, prefix="/admin", tags=["admin"])  # Admin API for 8x7k9m2p dashboard
 
+# Add backward compatibility routes for auth endpoints
+app.include_router(auth.router, prefix="/auth", tags=["auth-compat"])
+
+# Import and include webhook router
+from routes import webhooks
+app.include_router(webhooks.router, prefix="/api/webhooks", tags=["webhooks"])
+
 @app.get("/")
 async def root():
     """Health check endpoint"""

@@ -26,9 +26,11 @@ class FreightForwarderResponse(BaseModel):
     logo_url: Optional[str]
     description: Optional[str]  # Keep this field
     headquarters_country: Optional[str]  # Keep this field
-    average_rating: Optional[float] = 0.0
-    review_count: Optional[int] = 0
-    category_scores_summary: Optional[dict] = {}  # New field for aggregated category scores
+    average_rating: Optional[float] = 0.0  # Average rating per review
+    review_count: Optional[int] = 0  # Total number of review submissions (raw count)
+    weighted_review_count: Optional[float] = 0.0  # PRIMARY: Weighted count for frontend (anonymous=0.5, authenticated=1.0)
+    total_aggregated_score: Optional[float] = 0.0  # Sum of all review ratings
+    category_scores_summary: Optional[dict] = {}  # Aggregated category scores
     created_at: datetime
 
     class Config:
@@ -139,8 +141,12 @@ async def get_freight_forwarders_aggregated(
             FreightForwarder.created_at,
             # Calculate average rating from reviews.aggregate_rating
             func.avg(Review.aggregate_rating).label('calculated_average_rating'),
-            # Count total reviews
-            func.count(Review.id).label('calculated_review_count')
+            # Count total reviews (raw count)
+            func.count(Review.id).label('calculated_review_count'),
+            # Calculate total aggregated score (sum of all ratings)
+            func.sum(Review.aggregate_rating).label('calculated_total_score'),
+            # PRIMARY: Calculate weighted review count for frontend (anonymous=0.5, authenticated=1.0)
+            func.sum(Review.review_weight).label('calculated_weighted_count')
         ).outerjoin(Review, FreightForwarder.id == Review.freight_forwarder_id)
         
         if search:
@@ -198,6 +204,8 @@ async def get_freight_forwarders_aggregated(
                 headquarters_country=result.headquarters_country,
                 average_rating=float(result.calculated_average_rating or 0),
                 review_count=int(result.calculated_review_count or 0),
+                total_aggregated_score=float(result.calculated_total_score or 0),
+                weighted_review_count=float(result.calculated_weighted_count or result.calculated_review_count or 0),  # Fallback to review_count if weighted is 0
                 category_scores_summary=category_scores,
                 created_at=result.created_at
             )
@@ -234,6 +242,21 @@ async def get_freight_forwarder(
     except Exception:
         review_count = 0
     
+    # Calculate total aggregated score
+    try:
+        total_score = freight_forwarder.total_aggregated_score if hasattr(freight_forwarder, 'total_aggregated_score') else 0.0
+    except Exception:
+        total_score = 0.0
+    
+    # Calculate weighted review count
+    try:
+        weighted_count = freight_forwarder.weighted_review_count if hasattr(freight_forwarder, 'weighted_review_count') else 0.0
+        # Fallback: if weighted_count is 0 or None, use review_count instead
+        if not weighted_count or weighted_count == 0:
+            weighted_count = review_count
+    except Exception:
+        weighted_count = review_count  # Fallback to review_count
+    
     # Aggregate category scores from review_category_scores
     try:
         category_scores = freight_forwarder.category_scores_summary if hasattr(freight_forwarder, 'category_scores_summary') else {}
@@ -250,6 +273,8 @@ async def get_freight_forwarder(
         headquarters_country=freight_forwarder.headquarters_country,
         average_rating=avg_rating,
         review_count=review_count,
+        total_aggregated_score=total_score,
+        weighted_review_count=weighted_count,
         category_scores_summary=category_scores,
         created_at=freight_forwarder.created_at
     )

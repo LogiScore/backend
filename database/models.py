@@ -24,6 +24,17 @@ class User(Base):
     user_type = Column(String(20), default='shipper')
     subscription_tier = Column(String(20), default='free')
     stripe_customer_id = Column(String(255), nullable=True)
+    
+    # New comprehensive subscription fields
+    subscription_start_date = Column(DateTime(timezone=True), nullable=True)
+    subscription_end_date = Column(DateTime(timezone=True), nullable=True)
+    auto_renew_enabled = Column(Boolean, default=False)
+    payment_method_id = Column(String(255), nullable=True)
+    stripe_subscription_id = Column(String(255), nullable=True)
+    last_billing_date = Column(DateTime(timezone=True), nullable=True)
+    next_billing_date = Column(DateTime(timezone=True), nullable=True)
+    subscription_status = Column(String(20), default='active')  # active, past_due, canceled, expired, trial
+    
     is_verified = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -67,8 +78,28 @@ class FreightForwarder(Base):
     
     @hybrid_property
     def review_count(self):
-        """Get total number of reviews"""
+        """Get total number of review submissions"""
         return len(self.reviews) if self.reviews else 0
+    
+    @hybrid_property
+    def total_aggregated_score(self):
+        """Calculate total aggregated score from all reviews"""
+        if not self.reviews:
+            return 0.0
+        
+        # Sum all aggregate_rating values from reviews
+        total_score = sum(review.aggregate_rating or 0 for review in self.reviews if review.aggregate_rating is not None)
+        return total_score
+    
+    @hybrid_property
+    def weighted_review_count(self):
+        """Get weighted review count considering review weights"""
+        if not self.reviews:
+            return 0.0
+        
+        # Sum review weights (0.5 for anonymous, 1.0 for authenticated)
+        total_weight = sum(review.review_weight or 1.0 for review in self.reviews)
+        return total_weight
     
     @hybrid_property
     def category_scores_summary(self):
