@@ -99,6 +99,16 @@ async def migrate_database():
     except Exception as e:
         return {"error": f"Migration failed: {str(e)}"}
 
+@app.get("/api/fix-username-constraint")
+async def fix_username_constraint():
+    """Remove unique constraint on username column"""
+    try:
+        from database.migrate_subscription_fields import remove_username_unique_constraint
+        remove_username_unique_constraint()
+        return {"message": "Username constraint fix completed successfully"}
+    except Exception as e:
+        return {"error": f"Username constraint fix failed: {str(e)}"}
+
 # Add backward compatibility routes for auth endpoints
 app.include_router(auth.router, prefix="/auth", tags=["auth-compat"])
 

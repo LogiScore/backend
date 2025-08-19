@@ -211,8 +211,57 @@ def safe_migrate_essential_fields():
         if 'db' in locals():
             db.close()
 
+def remove_username_unique_constraint():
+    """Remove unique constraint on username column"""
+    try:
+        # Create database connection
+        database_url = get_database_url()
+        engine = create_engine(database_url)
+        
+        # Create session
+        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        db = SessionLocal()
+        
+        print("Removing unique constraint on username column...")
+        
+        if 'postgresql' in database_url.lower():
+            # PostgreSQL syntax
+            try:
+                # Check if constraint exists
+                result = db.execute(text("""
+                    SELECT constraint_name 
+                    FROM information_schema.table_constraints 
+                    WHERE table_name = 'users' 
+                    AND constraint_name = 'users_username_key'
+                """))
+                
+                if result.fetchone():
+                    # Remove the unique constraint
+                    db.execute(text("ALTER TABLE users DROP CONSTRAINT users_username_key"))
+                    print("✓ Removed unique constraint on username column")
+                else:
+                    print("✓ Username unique constraint already removed")
+            except Exception as e:
+                print(f"⚠ Warning removing username constraint: {str(e)}")
+        else:
+            # SQLite doesn't support dropping constraints easily
+            print("⚠ SQLite detected - manual constraint removal may be needed")
+        
+        db.commit()
+        print("✓ Username constraint migration completed")
+        
+    except Exception as e:
+        print(f"❌ Username constraint migration failed: {str(e)}")
+        if 'db' in locals():
+            db.rollback()
+    finally:
+        if 'db' in locals():
+            db.close()
+
 if __name__ == "__main__":
     print("Running full subscription fields migration...")
     migrate_subscription_fields()
     print("\nRunning essential fields migration...")
     safe_migrate_essential_fields()
+    print("\nRemoving username unique constraint...")
+    remove_username_unique_constraint()
