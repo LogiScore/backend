@@ -72,7 +72,6 @@ class AdminCompany(BaseModel):
         from_attributes = True
 
 class SubscriptionUpdate(BaseModel):
-    user_id: str
     tier: str
     comment: str
     duration: int
@@ -81,6 +80,20 @@ class SubscriptionUpdate(BaseModel):
 class CompanyCreate(BaseModel):
     name: str
     website: Optional[str] = None
+
+class RecentActivity(BaseModel):
+    id: str
+    type: str
+    message: str
+    timestamp: str
+    company_name: Optional[str] = None
+    user_name: Optional[str] = None
+
+class AnalyticsData(BaseModel):
+    review_growth: dict
+    user_engagement: dict
+    revenue_metrics: dict
+    top_companies: List[dict]
 
 # Helper function to check if user is admin
 async def get_admin_user(current_user: User = Depends(get_current_user)):
@@ -91,7 +104,7 @@ async def get_admin_user(current_user: User = Depends(get_current_user)):
         )
     return current_user
 
-@router.get("/dashboard/stats", response_model=DashboardStats)
+@router.get("/dashboard", response_model=DashboardStats)
 async def get_dashboard_stats(
     admin_user: User = Depends(get_admin_user),
     db: Session = Depends(get_db)
@@ -111,6 +124,8 @@ async def get_dashboard_stats(
         pending_disputes = db.query(Dispute).filter(Dispute.status == "open").count()
         
         # Count pending reviews (reviews that need moderation)
+        # For now, we'll count all active reviews as pending moderation
+        # In a real app, you might have a separate moderation status field
         pending_reviews = db.query(Review).filter(Review.is_active == True).count()
         
         # Calculate revenue (mock calculation for now)
@@ -129,6 +144,99 @@ async def get_dashboard_stats(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get dashboard stats: {str(e)}"
+        )
+
+@router.get("/recent-activity", response_model=List[RecentActivity])
+async def get_recent_activity(
+    admin_user: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+    limit: int = 20
+):
+    """Get recent platform activities for admin dashboard"""
+    try:
+        activities = []
+        
+        # Get recent reviews
+        recent_reviews = db.query(Review).order_by(Review.created_at.desc()).limit(limit//2).all()
+        for review in recent_reviews:
+            activities.append(RecentActivity(
+                id=str(review.id),
+                type="review",
+                message=f"New review submitted for {review.freight_forwarder.name}",
+                timestamp=review.created_at.isoformat() if review.created_at else "",
+                company_name=review.freight_forwarder.name,
+                user_name=review.user.username or "Anonymous"
+            ))
+        
+        # Get recent disputes
+        recent_disputes = db.query(Dispute).order_by(Dispute.created_at.desc()).limit(limit//2).all()
+        for dispute in recent_disputes:
+            activities.append(RecentActivity(
+                id=str(dispute.id),
+                type="dispute",
+                message=f"Dispute opened for {dispute.freight_forwarder.name} review",
+                timestamp=dispute.created_at.isoformat() if dispute.created_at else "",
+                company_name=dispute.freight_forwarder.name,
+                user_name="User"  # Dispute doesn't have direct user reference
+            ))
+        
+        # Sort by timestamp and return limited results
+        activities.sort(key=lambda x: x.timestamp, reverse=True)
+        return activities[:limit]
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get recent activity: {str(e)}"
+        )
+
+@router.get("/analytics", response_model=AnalyticsData)
+async def get_analytics(
+    admin_user: User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get platform analytics for admin dashboard"""
+    try:
+        # Mock analytics data for now
+        # In a real app, this would calculate actual metrics from database
+        analytics = AnalyticsData(
+            review_growth={
+                "labels": ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+                "data": [65, 78, 90, 85, 95, 120]
+            },
+            user_engagement={
+                "labels": ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+                "data": [1200, 1350, 1420, 1380, 1500, 1680]
+            },
+            revenue_metrics={
+                "labels": ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+                "data": [2500, 3200, 3800, 3500, 4200, 4800]
+            },
+            top_companies=[
+                {
+                    "name": "DHL Supply Chain",
+                    "reviews": 156,
+                    "rating": 4.2
+                },
+                {
+                    "name": "Kuehne + Nagel",
+                    "reviews": 142,
+                    "rating": 4.1
+                },
+                {
+                    "name": "DB Schenker",
+                    "reviews": 128,
+                    "rating": 4.3
+                }
+            ]
+        )
+        
+        return analytics
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get analytics: {str(e)}"
         )
 
 @router.get("/users", response_model=List[AdminUser])
@@ -232,7 +340,7 @@ async def get_reviews(
                 freight_forwarder_name=review.freight_forwarder.name,
                 branch_name=review.branch.name if review.branch else None,
                 reviewer_name=review.user.username or "Anonymous",
-                rating=review.aggregate_rating or 0.0,
+                rating=int(review.aggregate_rating) if review.aggregate_rating else 0,
                 comment="",  # review_text field removed from database
                 status="active" if review.is_active else "inactive",
                 created_at=review.created_at.isoformat() if review.created_at else None
@@ -318,7 +426,7 @@ async def get_disputes(
             AdminDispute(
                 id=str(dispute.id),
                 freight_forwarder_name=dispute.freight_forwarder.name,
-                issue=dispute.issue,
+                issue=dispute.reason,
                 status=dispute.status,
                 created_at=dispute.created_at.isoformat() if dispute.created_at else None
             )

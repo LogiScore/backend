@@ -474,4 +474,116 @@ async def signin_with_code(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Sign in failed: {str(e)}"
+        )
+
+# Admin verification endpoints for 8x7k9m2p dashboard
+class AdminVerificationRequest(BaseModel):
+    email: str
+
+class AdminCodeVerificationRequest(BaseModel):
+    email: str
+    code: str
+
+@router.post("/admin/send-verification-code")
+async def send_admin_verification_code(
+    request: AdminVerificationRequest,
+    db: Session = Depends(get_db)
+):
+    """Send verification code to admin email for 8x7k9m2p dashboard"""
+    try:
+        # Find user by email
+        user = db.query(User).filter(User.email == request.email).first()
+        if not user:
+            # Don't reveal if user exists or not for security
+            return {"message": "Verification code sent to your email"}
+        
+        # Check if user is admin
+        if user.user_type != "admin":
+            # Don't reveal if user exists or not for security
+            return {"message": "Verification code sent to your email"}
+        
+        # Generate 6-digit verification code
+        import random
+        verification_code = str(random.randint(100000, 999999))
+        
+        # Store verification code in user record
+        user.verification_code = verification_code
+        user.verification_code_expires = datetime.now(timezone.utc) + timedelta(minutes=10)
+        db.commit()
+        
+        # Send verification code email
+        email_sent = await email_service.send_verification_code(request.email, verification_code)
+        
+        if email_sent:
+            return {"message": "Verification code sent to your email"}
+        else:
+            # If email fails, log the code to console as fallback
+            import logging
+            logging.info(f"FALLBACK: Admin verification code for {request.email}: {verification_code}")
+            return {"message": "Verification code sent to your email"}
+    except Exception as e:
+        import logging
+        logging.error(f"Admin verification code error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to send verification code: {str(e)}"
+        )
+
+@router.post("/admin/verify-code", response_model=TokenResponse)
+async def verify_admin_code(
+    request: AdminCodeVerificationRequest,
+    db: Session = Depends(get_db)
+):
+    """Verify admin code and authenticate for 8x7k9m2p dashboard"""
+    try:
+        # Find user by email
+        user = db.query(User).filter(User.email == request.email).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or verification code"
+            )
+        
+        # Check if user is admin
+        if user.user_type != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin access required"
+            )
+        
+        # Verify code
+        if not user.verification_code or user.verification_code != request.code:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid verification code"
+            )
+        
+        # Check if code is expired
+        if user.verification_code_expires and user.verification_code_expires < datetime.now(timezone.utc):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Verification code has expired"
+            )
+        
+        # Clear verification code after successful use
+        user.verification_code = None
+        user.verification_code_expires = None
+        db.commit()
+        
+        # Create access token
+        access_token = create_access_token(data={"sub": str(user.id)})
+        
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": UserResponse.from_orm(user)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        logging.error(f"Admin code verification error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Verification failed: {str(e)}"
         ) 
