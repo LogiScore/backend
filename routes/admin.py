@@ -265,14 +265,31 @@ async def get_dashboard_stats(
     print(f"DEBUG: Dashboard accessed by admin user: {admin_user.email}")  # Debug log
     """Get dashboard statistics"""
     try:
-        # Count total users
+        # Count total users with breakdown by type
         total_users = db.query(User).count()
+        shipper_users = db.query(User).filter(User.user_type == 'shipper').count()
+        forwarder_users = db.query(User).filter(User.user_type == 'freight_forwarder').count()
+        admin_users = db.query(User).filter(User.user_type == 'admin').count()
         
         # Count total companies
         total_companies = db.query(FreightForwarder).count()
         
-        # Count total reviews
+        # Count total reviews with monthly growth
         total_reviews = db.query(Review).count()
+        
+        # Calculate monthly review growth (current month vs previous month)
+        from datetime import datetime, timedelta
+        current_month = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        last_month = (current_month - timedelta(days=1)).replace(day=1)
+        
+        current_month_reviews = db.query(Review).filter(
+            Review.created_at >= current_month
+        ).count()
+        
+        last_month_reviews = db.query(Review).filter(
+            Review.created_at >= last_month,
+            Review.created_at < current_month
+        ).count()
         
         # Count pending disputes
         pending_disputes = db.query(Dispute).filter(Dispute.status == "open").count()
@@ -282,9 +299,27 @@ async def get_dashboard_stats(
         # In a real app, you might have a separate moderation status field
         pending_reviews = db.query(Review).filter(Review.is_active == True).count()
         
-        # Calculate revenue (mock calculation for now)
-        # In a real app, this would come from subscription payments
-        total_revenue = 45600.0  # Mock value
+        # Calculate dynamic revenue from subscription data
+        # Query users with paid subscriptions and calculate total revenue
+        total_revenue = 0.0
+        
+        # Get users with paid subscriptions
+        paid_users = db.query(User).filter(
+            User.subscription_tier.in_(['shipper_monthly', 'shipper_annual', 'forwarder_monthly', 'forwarder_annual', 'forwarder_annual_plus'])
+        ).all()
+        
+        # Calculate revenue based on subscription tiers
+        subscription_prices = {
+            'shipper_monthly': 29.99,
+            'shipper_annual': 299.99,
+            'forwarder_monthly': 99.99,
+            'forwarder_annual': 999.99,
+            'forwarder_annual_plus': 1999.99
+        }
+        
+        for user in paid_users:
+            if user.subscription_tier in subscription_prices:
+                total_revenue += subscription_prices[user.subscription_tier]
         
         return DashboardStats(
             total_users=total_users,
@@ -392,38 +427,98 @@ async def get_analytics(
 ):
     """Get platform analytics for admin dashboard"""
     try:
-        # Mock analytics data for now
-        # In a real app, this would calculate actual metrics from database
+        # Calculate dynamic analytics data from database
+        from datetime import datetime, timedelta
+        
+        # Get last 6 months for labels
+        months = []
+        data = []
+        for i in range(5, -1, -1):
+            month_date = datetime.now() - timedelta(days=30*i)
+            months.append(month_date.strftime("%b"))
+            
+            # Count reviews for this month
+            month_start = month_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(seconds=1)
+            
+            month_reviews = db.query(Review).filter(
+                Review.created_at >= month_start,
+                Review.created_at <= month_end
+            ).count()
+            data.append(month_reviews)
+        
+        # Calculate user engagement (new users per month)
+        user_engagement_data = []
+        for i in range(5, -1, -1):
+            month_date = datetime.now() - timedelta(days=30*i)
+            month_start = month_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(seconds=1)
+            
+            month_users = db.query(User).filter(
+                User.created_at >= month_start,
+                User.created_at <= month_end
+            ).count()
+            user_engagement_data.append(month_users)
+        
+        # Calculate revenue metrics per month
+        revenue_data = []
+        subscription_prices = {
+            'shipper_monthly': 29.99,
+            'shipper_annual': 299.99,
+            'forwarder_monthly': 99.99,
+            'forwarder_annual': 999.99,
+            'forwarder_annual_plus': 1999.99
+        }
+        
+        for i in range(5, -1, -1):
+            month_date = datetime.now() - timedelta(days=30*i)
+            month_start = month_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(seconds=1)
+            
+            month_revenue = 0.0
+            month_users = db.query(User).filter(
+                User.created_at >= month_start,
+                User.created_at <= month_end,
+                User.subscription_tier.in_(list(subscription_prices.keys()))
+            ).all()
+            
+            for user in month_users:
+                if user.subscription_tier in subscription_prices:
+                    month_revenue += subscription_prices[user.subscription_tier]
+            
+            revenue_data.append(month_revenue)
+        
+        # Get top companies by review count
+        top_companies_query = db.query(
+            FreightForwarder.name,
+            func.count(Review.id).label('review_count'),
+            func.avg(Review.aggregate_rating).label('avg_rating')
+        ).join(Review).group_by(FreightForwarder.id, FreightForwarder.name).order_by(
+            func.count(Review.id).desc()
+        ).limit(5).all()
+        
+        top_companies = []
+        for company in top_companies_query:
+            top_companies.append({
+                "name": company.name,
+                "reviews": company.review_count,
+                "rating": round(float(company.avg_rating or 0), 1)
+            })
+        
         analytics = AnalyticsData(
             review_growth={
-                "labels": ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
-                "data": [65, 78, 90, 85, 95, 120]
+                "labels": months,
+                "data": data
             },
             user_engagement={
-                "labels": ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
-                "data": [1200, 1350, 1420, 1380, 1500, 1680]
+                "labels": months,
+                "data": user_engagement_data
             },
             revenue_metrics={
-                "labels": ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
-                "data": [2500, 3200, 3800, 3500, 4200, 4800]
+                "labels": months,
+                "data": revenue_data
             },
-            top_companies=[
-                {
-                    "name": "DHL Supply Chain",
-                    "reviews": 156,
-                    "rating": 4.2
-                },
-                {
-                    "name": "Kuehne + Nagel",
-                    "reviews": 142,
-                    "rating": 4.1
-                },
-                {
-                    "name": "DB Schenker",
-                    "reviews": 128,
-                    "rating": 4.3
-                }
-            ]
+            top_companies=top_companies
         )
         
         return analytics
