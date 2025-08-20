@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import uuid
 
 from database.database import get_db
-from database.models import User, FreightForwarder, Review, Dispute, Branch
+from database.models import User, FreightForwarder, Review, Dispute
 from auth.auth import get_current_user
 
 router = APIRouter()
@@ -63,7 +63,6 @@ class AdminUser(BaseModel):
 class AdminReview(BaseModel):
     id: str
     freight_forwarder_name: str
-    branch_name: Optional[str]
     reviewer_name: str
     rating: int
     comment: Optional[str]
@@ -79,8 +78,7 @@ class AdminReview(BaseModel):
         # Convert datetime to ISO string for created_at
         data = {
             'id': str(obj.id),
-            'freight_forwarder_name': obj.freight_forwarder.name if obj.freight_forwarder else "Unknown Company",
-            'branch_name': obj.branch.name if obj.branch else None,
+            'freight_forwarder_name': "Company ID: " + str(obj.freight_forwarder_id)[:8] + "..." if hasattr(obj, 'freight_forwarder_id') and obj.freight_forwarder_id else "Unknown Company",
             'reviewer_name': obj.user.username if obj.user and hasattr(obj.user, 'username') else "Anonymous",
             'rating': int(obj.aggregate_rating) if obj.aggregate_rating else 0,
             'comment': "",  # review_text field removed from database
@@ -136,7 +134,6 @@ class AdminCompany(BaseModel):
     logo_url: Optional[str]
     description: Optional[str]
     headquarters_country: Optional[str]
-    branches_count: int
     reviews_count: int
     status: str
 
@@ -324,9 +321,15 @@ async def get_recent_activity(
                 if review.user and hasattr(review.user, 'username'):
                     user_name = review.user.username or review.user.full_name or review.user.email or "User"
                 
-                # Get freight forwarder name safely
+                # Get freight forwarder name safely - handle both schemas
                 company_name = "Unknown Company"
-                if review.freight_forwarder and hasattr(review.freight_forwarder, 'name'):
+                if hasattr(review, 'freight_forwarder_id') and review.freight_forwarder_id:
+                    # Production schema - direct ID
+                    freight_forwarder = db.query(FreightForwarder).filter(FreightForwarder.id == review.freight_forwarder_id).first()
+                    if freight_forwarder:
+                        company_name = freight_forwarder.name
+                elif review.freight_forwarder and hasattr(review.freight_forwarder, 'name'):
+                    # Development schema - relationship
                     company_name = review.freight_forwarder.name
                 
                 activities.append(RecentActivity(
@@ -726,8 +729,7 @@ async def get_reviews(
         return [
             AdminReview(
                 id=str(review.id),
-                freight_forwarder_name=review.freight_forwarder.name if review.freight_forwarder else "Unknown Company",
-                branch_name=review.branch.name if review.branch else None,
+                freight_forwarder_name="Company ID: " + str(review.freight_forwarder_id)[:8] + "..." if hasattr(review, 'freight_forwarder_id') and review.freight_forwarder_id else "Unknown Company",
                 reviewer_name=review.user.username if review.user and hasattr(review.user, 'username') else "Anonymous",
                 rating=int(review.aggregate_rating) if review.aggregate_rating else 0,
                 comment="",  # review_text field removed from database
@@ -866,9 +868,6 @@ async def get_companies(
         
         result = []
         for company in companies:
-            # Count branches
-            branches_count = db.query(Branch).filter(Branch.freight_forwarder_id == company.id).count()
-            
             # Count reviews
             reviews_count = db.query(Review).filter(Review.freight_forwarder_id == company.id).count()
             
@@ -879,7 +878,6 @@ async def get_companies(
                 logo_url=company.logo_url,
                 description=company.description,
                 headquarters_country=company.headquarters_country,
-                branches_count=branches_count,
                 reviews_count=reviews_count,
                 status="active"
             ))
@@ -930,7 +928,6 @@ async def create_company(
             logo_url=new_company.logo_url,
             description=new_company.description,
             headquarters_country=new_company.headquarters_country,
-            branches_count=0,
             reviews_count=0,
             status="active"
         )
@@ -1058,8 +1055,7 @@ async def update_company(
         
         print(f"DEBUG: Converting company to AdminCompany model")
         try:
-            # Count branches and reviews for the updated company
-            branches_count = db.query(Branch).filter(Branch.freight_forwarder_id == company.id).count()
+            # Count reviews for the updated company
             reviews_count = db.query(Review).filter(Review.freight_forwarder_id == company.id).count()
             
             result = AdminCompany(
@@ -1067,7 +1063,6 @@ async def update_company(
                 name=company.name,
                 website=company.website,
                 logo_url=company.logo_url,
-                branches_count=branches_count,
                 reviews_count=reviews_count,
                 status="active"
             )
@@ -1152,14 +1147,13 @@ async def delete_company(
                 detail=f"Database query failed: {str(db_query_error)}"
             )
         
-        # Check if company has any branches or reviews
-        branches_count = db.query(Branch).filter(Branch.freight_forwarder_id == company.id).count()
+        # Check if company has any reviews
         reviews_count = db.query(Review).filter(Review.freight_forwarder_id == company.id).count()
         
-        if branches_count > 0 or reviews_count > 0:
+        if reviews_count > 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Cannot delete company. It has {branches_count} branches and {reviews_count} reviews. Please remove all branches and reviews first."
+                detail=f"Cannot delete company. It has {reviews_count} reviews. Please remove all reviews first."
             )
         
         print(f"DEBUG: About to delete company from database")
@@ -1247,8 +1241,7 @@ async def get_company(
                 detail=f"Database query failed: {str(db_query_error)}"
             )
         
-        # Count branches and reviews for the company
-        branches_count = db.query(Branch).filter(Branch.freight_forwarder_id == company.id).count()
+        # Count reviews for the company
         reviews_count = db.query(Review).filter(Review.freight_forwarder_id == company.id).count()
         
         result = AdminCompany(
@@ -1256,7 +1249,6 @@ async def get_company(
             name=company.name,
             website=company.website,
             logo_url=company.logo_url,
-            branches_count=branches_count,
             reviews_count=reviews_count,
             status="active"
         )
