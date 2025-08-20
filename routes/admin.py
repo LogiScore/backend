@@ -114,9 +114,7 @@ class AdminDispute(BaseModel):
         if hasattr(obj, 'freight_forwarder_id') and obj.freight_forwarder_id:
             # Production schema - direct ID
             freight_forwarder_name = "Company ID: " + str(obj.freight_forwarder_id)[:8] + "..."
-        elif obj.freight_forwarder:
-            # Development schema - relationship
-            freight_forwarder_name = obj.freight_forwarder.name
+        # Remove development schema fallback since it's not available in production
         
         data = {
             'id': str(obj.id),
@@ -328,9 +326,7 @@ async def get_recent_activity(
                     freight_forwarder = db.query(FreightForwarder).filter(FreightForwarder.id == review.freight_forwarder_id).first()
                     if freight_forwarder:
                         company_name = freight_forwarder.name
-                elif review.freight_forwarder and hasattr(review.freight_forwarder, 'name'):
-                    # Development schema - relationship
-                    company_name = review.freight_forwarder.name
+                # Remove development schema fallback since it's not available in production
                 
                 activities.append(RecentActivity(
                     id=str(review.id),
@@ -354,9 +350,7 @@ async def get_recent_activity(
                 freight_forwarder = db.query(FreightForwarder).filter(FreightForwarder.id == dispute.freight_forwarder_id).first()
                 if freight_forwarder:
                     freight_forwarder_name = freight_forwarder.name
-            elif dispute.review and dispute.review.freight_forwarder:
-                # Through review relationship (development schema)
-                freight_forwarder_name = dispute.review.freight_forwarder.name
+            # Remove development schema fallback since it's not available in production
             
             # Get reporter name safely - try multiple possible fields for production schema compatibility
             reporter_name = "Unknown"
@@ -370,9 +364,7 @@ async def get_recent_activity(
                 user = db.query(User).filter(User.id == dispute.reported_by).first()
                 if user:
                     reporter_name = user.username or user.full_name or user.email or "User"
-            elif dispute.reporter:
-                # Through reporter relationship
-                reporter_name = dispute.reporter.username or dispute.reporter.full_name or dispute.reporter.email or "User"
+            # Remove development schema fallback since it's not available in production
             
             activities.append(RecentActivity(
                 id=str(dispute.id),
