@@ -166,6 +166,31 @@ class CompanyCreate(BaseModel):
     name: str
     website: Optional[str] = None
 
+class CompanyUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    website: Optional[str] = None
+    logo_url: Optional[str] = None
+    description: Optional[str] = None
+    headquarters_country: Optional[str] = None
+    
+    class Config:
+        # Allow extra fields to be ignored
+        extra = "ignore"
+    
+    def __init__(self, **data):
+        # Pre-process the data to handle type conversions
+        processed_data = {}
+        for key, value in data.items():
+            if key in ['name', 'website', 'logo_url', 'description', 'headquarters_country']:
+                if value is not None:
+                    processed_data[key] = str(value).strip() if value else None
+                else:
+                    processed_data[key] = None
+            else:
+                processed_data[key] = value
+        
+        super().__init__(**processed_data)
+
 class RecentActivity(BaseModel):
     id: str
     type: str
@@ -850,4 +875,345 @@ async def create_company(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create company: {str(e)}"
+        )
+
+@router.put("/companies/{company_id}", response_model=AdminCompany)
+async def update_company(
+    company_id: str,
+    company_update: CompanyUpdateRequest,
+    admin_user: User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Update company information (admin only)"""
+    try:
+        # Debug logging
+        print(f"DEBUG: Updating company {company_id} with data: {company_update.dict()}")
+        print(f"DEBUG: company_id type: {type(company_id)}, value: {company_id}")
+        
+        # Validate company_id format
+        try:
+            import uuid
+            uuid.UUID(company_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid company ID format"
+            )
+        
+        # Check if database session is valid
+        try:
+            if not db.is_active:
+                print(f"ERROR: Database session is not active")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Database session error"
+                )
+            
+            # Test database connection with a simple query
+            from sqlalchemy import text
+            test_result = db.execute(text("SELECT 1")).scalar()
+            print(f"DEBUG: Database connection test result: {test_result}")
+            
+            # Get company to update
+            company = db.query(FreightForwarder).filter(FreightForwarder.id == company_id).first()
+            if not company:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Company not found"
+                )
+            print(f"DEBUG: Found company in database: {company.name}")
+        except Exception as db_query_error:
+            print(f"ERROR: Database query failed: {str(db_query_error)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Database query failed: {str(db_query_error)}"
+            )
+        
+        # Update fields if provided
+        if company_update.name is not None:
+            # Check if name is already taken by another company
+            existing_company = db.query(FreightForwarder).filter(
+                FreightForwarder.name == company_update.name,
+                FreightForwarder.id != company_id
+            ).first()
+            if existing_company:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Company with this name already exists"
+                )
+            
+            # Ensure name is a string and not empty
+            name = str(company_update.name).strip() if company_update.name else None
+            company.name = name if name else company.name
+            print(f"DEBUG: Updated name to: {name}")
+        
+        if company_update.website is not None:
+            # Ensure website is a string and not empty
+            website = str(company_update.website).strip() if company_update.website else None
+            company.website = website if website else None
+            print(f"DEBUG: Updated website to: {website}")
+        
+        if company_update.logo_url is not None:
+            # Ensure logo_url is a string and not empty
+            logo_url = str(company_update.logo_url).strip() if company_update.logo_url else None
+            company.logo_url = logo_url if logo_url else None
+            print(f"DEBUG: Updated logo_url to: {logo_url}")
+        
+        if company_update.description is not None:
+            # Ensure description is a string and not empty
+            description = str(company_update.description).strip() if company_update.description else None
+            company.description = description if description else None
+            print(f"DEBUG: Updated description to: {description}")
+        
+        if company_update.headquarters_country is not None:
+            # Ensure headquarters_country is a string and not empty
+            headquarters_country = str(company_update.headquarters_country).strip() if company_update.headquarters_country else None
+            company.headquarters_country = headquarters_country if headquarters_country else None
+            print(f"DEBUG: Updated headquarters_country to: {headquarters_country}")
+        
+        print(f"DEBUG: About to commit changes to database")
+        try:
+            # Check if there are any pending changes
+            if db.is_modified(company):
+                print(f"DEBUG: Company object has pending changes, committing...")
+                db.commit()
+                print(f"DEBUG: Database commit successful")
+            else:
+                print(f"DEBUG: No changes detected, skipping commit")
+            
+            # Refresh the company object
+            db.refresh(company)
+            print(f"DEBUG: Company object refreshed successfully")
+        except Exception as db_error:
+            print(f"ERROR: Database commit failed: {str(db_error)}")
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Database update failed: {str(db_error)}"
+            )
+        
+        print(f"DEBUG: Converting company to AdminCompany model")
+        try:
+            # Count branches and reviews for the updated company
+            branches_count = db.query(Branch).filter(Branch.freight_forwarder_id == company.id).count()
+            reviews_count = db.query(Review).filter(Review.freight_forwarder_id == company.id).count()
+            
+            result = AdminCompany(
+                id=str(company.id),
+                name=company.name,
+                website=company.website,
+                logo_url=company.logo_url,
+                branches_count=branches_count,
+                reviews_count=reviews_count,
+                status="active"
+            )
+            print(f"DEBUG: Successfully converted to AdminCompany: {result.dict()}")
+            return result
+        except Exception as conversion_error:
+            print(f"ERROR: Failed to convert company to AdminCompany: {str(conversion_error)}")
+            import traceback
+            traceback.print_exc()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to convert company data: {str(conversion_error)}"
+            )
+        
+    except HTTPException:
+        raise
+    except ValueError as ve:
+        print(f"ERROR: Validation error: {str(ve)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Validation error: {str(ve)}"
+        )
+    except Exception as e:
+        import logging
+        logging.error(f"Failed to update company: {str(e)}")
+        print(f"ERROR: Failed to update company: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update company: {str(e)}"
+        )
+
+@router.delete("/companies/{company_id}")
+async def delete_company(
+    company_id: str,
+    admin_user: User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a company (admin only)"""
+    try:
+        # Debug logging
+        print(f"DEBUG: Deleting company {company_id}")
+        print(f"DEBUG: company_id type: {type(company_id)}, value: {company_id}")
+        
+        # Validate company_id format
+        try:
+            import uuid
+            uuid.UUID(company_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid company ID format"
+            )
+        
+        # Check if database session is valid
+        try:
+            if not db.is_active:
+                print(f"ERROR: Database session is not active")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Database session error"
+                )
+            
+            # Test database connection with a simple query
+            from sqlalchemy import text
+            test_result = db.execute(text("SELECT 1")).scalar()
+            print(f"DEBUG: Database connection test result: {test_result}")
+            
+            # Get company to delete
+            company = db.query(FreightForwarder).filter(FreightForwarder.id == company_id).first()
+            if not company:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Company not found"
+                )
+            print(f"DEBUG: Found company in database: {company.name}")
+        except Exception as db_query_error:
+            print(f"ERROR: Database query failed: {str(db_query_error)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Database query failed: {str(db_query_error)}"
+            )
+        
+        # Check if company has any branches or reviews
+        branches_count = db.query(Branch).filter(Branch.freight_forwarder_id == company.id).count()
+        reviews_count = db.query(Review).filter(Review.freight_forwarder_id == company.id).count()
+        
+        if branches_count > 0 or reviews_count > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot delete company. It has {branches_count} branches and {reviews_count} reviews. Please remove all branches and reviews first."
+            )
+        
+        print(f"DEBUG: About to delete company from database")
+        try:
+            db.delete(company)
+            db.commit()
+            print(f"DEBUG: Company deleted successfully")
+        except Exception as db_error:
+            print(f"ERROR: Database delete failed: {str(db_error)}")
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Database delete failed: {str(db_error)}"
+            )
+        
+        return {"message": f"Company '{company.name}' deleted successfully"}
+        
+    except HTTPException:
+        raise
+    except ValueError as ve:
+        print(f"ERROR: Validation error: {str(ve)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Validation error: {str(ve)}"
+        )
+    except Exception as e:
+        import logging
+        logging.error(f"Failed to delete company: {str(e)}")
+        print(f"ERROR: Failed to delete company: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete company: {str(e)}"
+        )
+
+@router.get("/companies/{company_id}", response_model=AdminCompany)
+async def get_company(
+    company_id: str,
+    admin_user: User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get company details by ID (admin only)"""
+    try:
+        # Debug logging
+        print(f"DEBUG: Getting company {company_id}")
+        print(f"DEBUG: company_id type: {type(company_id)}, value: {company_id}")
+        
+        # Validate company_id format
+        try:
+            import uuid
+            uuid.UUID(company_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid company ID format"
+            )
+        
+        # Check if database session is valid
+        try:
+            if not db.is_active:
+                print(f"ERROR: Database session is not active")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Database session error"
+                )
+            
+            # Test database connection with a simple query
+            from sqlalchemy import text
+            test_result = db.execute(text("SELECT 1")).scalar()
+            print(f"DEBUG: Database connection test result: {test_result}")
+            
+            # Get company by ID
+            company = db.query(FreightForwarder).filter(FreightForwarder.id == company_id).first()
+            if not company:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Company not found"
+                )
+            print(f"DEBUG: Found company in database: {company.name}")
+        except Exception as db_query_error:
+            print(f"ERROR: Database query failed: {str(db_query_error)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Database query failed: {str(db_query_error)}"
+            )
+        
+        # Count branches and reviews for the company
+        branches_count = db.query(Branch).filter(Branch.freight_forwarder_id == company.id).count()
+        reviews_count = db.query(Review).filter(Review.freight_forwarder_id == company.id).count()
+        
+        result = AdminCompany(
+            id=str(company.id),
+            name=company.name,
+            website=company.website,
+            logo_url=company.logo_url,
+            branches_count=branches_count,
+            reviews_count=reviews_count,
+            status="active"
+        )
+        print(f"DEBUG: Successfully retrieved company: {result.dict()}")
+        return result
+        
+    except HTTPException:
+        raise
+    except ValueError as ve:
+        print(f"ERROR: Validation error: {str(ve)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Validation error: {str(ve)}"
+        )
+    except Exception as e:
+        import logging
+        logging.error(f"Failed to get company: {str(e)}")
+        print(f"ERROR: Failed to get company: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get company: {str(e)}"
         ) 
