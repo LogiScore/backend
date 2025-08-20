@@ -79,9 +79,9 @@ class AdminReview(BaseModel):
         # Convert datetime to ISO string for created_at
         data = {
             'id': str(obj.id),
-            'freight_forwarder_name': obj.freight_forwarder.name,
+            'freight_forwarder_name': obj.freight_forwarder.name if obj.freight_forwarder else "Unknown Company",
             'branch_name': obj.branch.name if obj.branch else None,
-            'reviewer_name': obj.user.username or "Anonymous",
+            'reviewer_name': obj.user.username if obj.user and hasattr(obj.user, 'username') else "Anonymous",
             'rating': int(obj.aggregate_rating) if obj.aggregate_rating else 0,
             'comment': "",  # review_text field removed from database
             'status': "active" if obj.is_active else "inactive",
@@ -105,7 +105,7 @@ class AdminDispute(BaseModel):
         # Convert datetime to ISO string for created_at
         data = {
             'id': str(obj.id),
-            'freight_forwarder_name': obj.freight_forwarder.name,
+            'freight_forwarder_name': obj.freight_forwarder.name if obj.freight_forwarder else "Unknown Company",
             'issue': obj.issue,
             'status': obj.status,
             'created_at': obj.created_at.isoformat() if obj.created_at else None
@@ -301,25 +301,49 @@ async def get_recent_activity(
         # Get recent reviews
         recent_reviews = db.query(Review).order_by(Review.created_at.desc()).limit(limit//2).all()
         for review in recent_reviews:
-            activities.append(RecentActivity(
-                id=str(review.id),
-                type="review",
-                message=f"New review submitted for {review.freight_forwarder.name}",
-                timestamp=review.created_at.isoformat() if review.created_at else "",
-                company_name=review.freight_forwarder.name,
-                user_name=review.user.username or "Anonymous"
-            ))
+            try:
+                # Get user name safely
+                user_name = "Anonymous"
+                if review.user and hasattr(review.user, 'username'):
+                    user_name = review.user.username or review.user.full_name or review.user.email or "User"
+                
+                # Get freight forwarder name safely
+                company_name = "Unknown Company"
+                if review.freight_forwarder and hasattr(review.freight_forwarder, 'name'):
+                    company_name = review.freight_forwarder.name
+                
+                activities.append(RecentActivity(
+                    id=str(review.id),
+                    type="review",
+                    message=f"New review submitted for {company_name}",
+                    timestamp=review.created_at.isoformat() if review.created_at else "",
+                    company_name=company_name,
+                    user_name=user_name
+                ))
+            except Exception as e:
+                print(f"Warning: Skipping review {review.id} due to error: {str(e)}")
+                continue
         
         # Get recent disputes
         recent_disputes = db.query(Dispute).order_by(Dispute.created_at.desc()).limit(limit//2).all()
         for dispute in recent_disputes:
+            # Get freight forwarder name through the review relationship
+            freight_forwarder_name = "Unknown"
+            if dispute.review and dispute.review.freight_forwarder:
+                freight_forwarder_name = dispute.review.freight_forwarder.name
+            
+            # Get reporter name safely
+            reporter_name = "Unknown"
+            if dispute.reporter and hasattr(dispute.reporter, 'username'):
+                reporter_name = dispute.reporter.username or dispute.reporter.full_name or dispute.reporter.email or "User"
+            
             activities.append(RecentActivity(
                 id=str(dispute.id),
                 type="dispute",
-                message=f"Dispute opened for {dispute.freight_forwarder.name} review",
+                message=f"Dispute opened for {freight_forwarder_name} review",
                 timestamp=dispute.created_at.isoformat() if dispute.created_at else "",
-                company_name=dispute.freight_forwarder.name,
-                user_name="User"  # Dispute doesn't have direct user reference
+                company_name=freight_forwarder_name,
+                user_name=reporter_name
             ))
         
         # Sort by timestamp and return limited results
@@ -668,9 +692,9 @@ async def get_reviews(
         return [
             AdminReview(
                 id=str(review.id),
-                freight_forwarder_name=review.freight_forwarder.name,
+                freight_forwarder_name=review.freight_forwarder.name if review.freight_forwarder else "Unknown Company",
                 branch_name=review.branch.name if review.branch else None,
-                reviewer_name=review.user.username or "Anonymous",
+                reviewer_name=review.user.username if review.user and hasattr(review.user, 'username') else "Anonymous",
                 rating=int(review.aggregate_rating) if review.aggregate_rating else 0,
                 comment="",  # review_text field removed from database
                 status="active" if review.is_active else "inactive",
@@ -756,7 +780,7 @@ async def get_disputes(
         return [
             AdminDispute(
                 id=str(dispute.id),
-                freight_forwarder_name=dispute.freight_forwarder.name,
+                freight_forwarder_name=dispute.freight_forwarder.name if dispute.freight_forwarder else "Unknown Company",
                 issue=dispute.reason,
                 status=dispute.status,
                 created_at=dispute.created_at.isoformat() if dispute.created_at else None
