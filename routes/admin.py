@@ -31,10 +31,34 @@ class AdminUser(BaseModel):
     subscription_tier: str
     is_verified: bool
     is_active: bool
-    created_at: str
+    created_at: Optional[str] = None
 
     class Config:
         from_attributes = True
+        
+    @classmethod
+    def from_orm(cls, obj):
+        try:
+            # Convert UUID to string for the id field
+            # Convert datetime to ISO string for created_at
+            data = {
+                'id': str(obj.id) if obj.id else None,
+                'email': str(obj.email) if obj.email else None,
+                'username': str(obj.username) if obj.username else None,
+                'full_name': str(obj.full_name) if obj.full_name else None,
+                'company_name': str(obj.company_name) if obj.company_name else None,
+                'user_type': str(obj.user_type) if obj.user_type else None,
+                'subscription_tier': str(obj.subscription_tier) if obj.subscription_tier else None,
+                'is_verified': bool(obj.is_verified) if obj.is_verified is not None else False,
+                'is_active': bool(obj.is_active) if obj.is_active is not None else True,
+                'created_at': obj.created_at.isoformat() if obj.created_at else None
+            }
+            return cls(**data)
+        except Exception as e:
+            print(f"ERROR in AdminUser.from_orm: {str(e)}")
+            print(f"Object type: {type(obj)}")
+            print(f"Object attributes: {dir(obj)}")
+            raise
 
 class AdminReview(BaseModel):
     id: str
@@ -44,20 +68,49 @@ class AdminReview(BaseModel):
     rating: int
     comment: Optional[str]
     status: str
-    created_at: str
+    created_at: Optional[str] = None
 
     class Config:
         from_attributes = True
+        
+    @classmethod
+    def from_orm(cls, obj):
+        # Convert UUID to string for the id field
+        # Convert datetime to ISO string for created_at
+        data = {
+            'id': str(obj.id),
+            'freight_forwarder_name': obj.freight_forwarder.name,
+            'branch_name': obj.branch.name if obj.branch else None,
+            'reviewer_name': obj.user.username or "Anonymous",
+            'rating': int(obj.aggregate_rating) if obj.aggregate_rating else 0,
+            'comment': "",  # review_text field removed from database
+            'status': "active" if obj.is_active else "inactive",
+            'created_at': obj.created_at.isoformat() if obj.created_at else None
+        }
+        return cls(**data)
 
 class AdminDispute(BaseModel):
     id: str
     freight_forwarder_name: str
     issue: str
     status: str
-    created_at: str
+    created_at: Optional[str] = None
 
     class Config:
         from_attributes = True
+        
+    @classmethod
+    def from_orm(cls, obj):
+        # Convert UUID to string for the id field
+        # Convert datetime to ISO string for created_at
+        data = {
+            'id': str(obj.id),
+            'freight_forwarder_name': obj.freight_forwarder.name,
+            'issue': obj.issue,
+            'status': obj.status,
+            'created_at': obj.created_at.isoformat() if obj.created_at else None
+        }
+        return cls(**data)
 
 class AdminCompany(BaseModel):
     id: str
@@ -80,10 +133,34 @@ class SubscriptionUpdate(BaseModel):
 class UserUpdateRequest(BaseModel):
     username: Optional[str] = None
     full_name: Optional[str] = None
+    email: Optional[str] = None
     company_name: Optional[str] = None
     user_type: Optional[str] = None
     is_verified: Optional[bool] = None
     is_active: Optional[bool] = None
+    
+    class Config:
+        # Allow extra fields to be ignored
+        extra = "ignore"
+    
+    def __init__(self, **data):
+        # Pre-process the data to handle type conversions
+        processed_data = {}
+        for key, value in data.items():
+            if key in ['username', 'full_name', 'email', 'company_name', 'user_type']:
+                if value is not None:
+                    processed_data[key] = str(value).strip() if value else None
+                else:
+                    processed_data[key] = None
+            elif key in ['is_verified', 'is_active']:
+                if value is not None:
+                    processed_data[key] = bool(value)
+                else:
+                    processed_data[key] = None
+            else:
+                processed_data[key] = value
+        
+        super().__init__(**processed_data)
 
 class CompanyCreate(BaseModel):
     name: str
@@ -372,42 +449,169 @@ async def update_user(
 ):
     """Update user information (admin only)"""
     try:
-        # Get user to update
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
+        # Debug logging
+        print(f"DEBUG: Updating user {user_id} with data: {user_update.dict()}")
+        print(f"DEBUG: user_id type: {type(user_id)}, value: {user_id}")
+        print(f"DEBUG: user_update object type: {type(user_update)}")
+        print(f"DEBUG: user_update fields: {user_update.__dict__}")
+        
+        # Validate user_id format
+        try:
+            import uuid
+            uuid.UUID(user_id)
+        except ValueError:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid user ID format"
             )
+        
+                # Get user to update
+        try:
+            # Check if database session is valid
+            if not db.is_active:
+                print(f"ERROR: Database session is not active")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Database session error"
+                )
+            
+            # Test database connection with a simple query
+            test_result = db.execute("SELECT 1").scalar()
+            print(f"DEBUG: Database connection test result: {test_result}")
+            
+            user = db.query(User).filter(User.id == user_id).first()
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User not found"
+                )
+            print(f"DEBUG: Found user in database: {user.email}")
+        except Exception as db_query_error:
+            print(f"ERROR: Database query failed: {str(db_query_error)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Database query failed: {str(db_query_error)}"
+            )
+        
+        print(f"DEBUG: Found user: {user.email}, current type: {user.user_type}")
         
         # Update fields if provided
         if user_update.username is not None:
-            user.username = user_update.username
+            # Ensure username is a string and not empty
+            username = str(user_update.username).strip() if user_update.username else None
+            user.username = username if username else None
+            print(f"DEBUG: Updated username to: {username}")
         if user_update.full_name is not None:
-            user.full_name = user_update.full_name
+            # Ensure full_name is a string and not empty
+            full_name = str(user_update.full_name).strip() if user_update.full_name else None
+            user.full_name = full_name if full_name else None
+            print(f"DEBUG: Updated full_name to: {full_name}")
+        if user_update.email is not None:
+            # Ensure email is a string and properly formatted
+            email = str(user_update.email).lower().strip() if user_update.email else None
+            if email:
+                # Check if email is already taken by another user
+                existing_user = db.query(User).filter(
+                    User.email == email,
+                    User.id != user_id
+                ).first()
+                if existing_user:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Email is already taken by another user"
+                    )
+                user.email = email
+                print(f"DEBUG: Updated email to: {email}")
         if user_update.company_name is not None:
-            user.company_name = user_update.company_name
+            # Ensure company_name is a string and not empty
+            company_name = str(user_update.company_name).strip() if user_update.company_name else None
+            user.company_name = company_name if company_name else None
+            print(f"DEBUG: Updated company_name to: {company_name}")
         if user_update.user_type is not None:
-            # Validate user_type
-            if user_update.user_type not in ["shipper", "forwarder", "admin"]:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid user type. Must be 'shipper', 'forwarder', or 'admin'"
-                )
-            user.user_type = user_update.user_type
+            # Ensure user_type is a string and validate it
+            user_type = str(user_update.user_type).lower().strip() if user_update.user_type else None
+            if user_type:
+                # Validate user_type
+                if user_type not in ["shipper", "forwarder", "admin"]:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Invalid user type. Must be 'shipper', 'forwarder', or 'admin'"
+                    )
+                user.user_type = user_type
+                print(f"DEBUG: Updated user_type to: {user_type}")
         if user_update.is_verified is not None:
-            user.is_verified = user_update.is_verified
+            # Ensure is_verified is a boolean
+            is_verified = bool(user_update.is_verified) if user_update.is_verified is not None else None
+            user.is_verified = is_verified
+            print(f"DEBUG: Updated is_verified to: {is_verified}")
         if user_update.is_active is not None:
-            user.is_active = user_update.is_active
+            # Ensure is_active is a boolean
+            is_active = bool(user_update.is_active) if user_update.is_active is not None else None
+            user.is_active = is_active
+            print(f"DEBUG: Updated is_active to: {is_active}")
         
-        db.commit()
-        db.refresh(user)
+        print(f"DEBUG: About to commit changes to database")
+        try:
+            # Check if there are any pending changes
+            if db.is_modified(user):
+                print(f"DEBUG: User object has pending changes, committing...")
+                db.commit()
+                print(f"DEBUG: Database commit successful")
+            else:
+                print(f"DEBUG: No changes detected, skipping commit")
+            
+            # Refresh the user object
+            db.refresh(user)
+            print(f"DEBUG: User object refreshed successfully")
+        except Exception as db_error:
+            print(f"ERROR: Database commit failed: {str(db_error)}")
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Database update failed: {str(db_error)}"
+            )
         
-        return AdminUser.from_orm(user)
+        print(f"DEBUG: Converting user to AdminUser model")
+        try:
+            # Debug the user object before conversion
+            print(f"DEBUG: User object before conversion:")
+            print(f"  - id: {user.id} (type: {type(user.id)})")
+            print(f"  - email: {user.email} (type: {type(user.email)})")
+            print(f"  - username: {user.username} (type: {type(user.username)})")
+            print(f"  - full_name: {user.full_name} (type: {type(user.full_name)})")
+            print(f"  - company_name: {user.company_name} (type: {type(user.company_name)})")
+            print(f"  - user_type: {user.user_type} (type: {type(user.user_type)})")
+            print(f"  - subscription_tier: {user.subscription_tier} (type: {type(user.subscription_tier)})")
+            print(f"  - is_verified: {user.is_verified} (type: {type(user.is_verified)})")
+            print(f"  - is_active: {user.is_active} (type: {type(user.is_active)})")
+            print(f"  - created_at: {user.created_at} (type: {type(user.created_at)})")
+            
+            result = AdminUser.from_orm(user)
+            print(f"DEBUG: Successfully converted to AdminUser: {result.dict()}")
+            return result
+        except Exception as conversion_error:
+            print(f"ERROR: Failed to convert user to AdminUser: {str(conversion_error)}")
+            import traceback
+            traceback.print_exc()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to convert user data: {str(conversion_error)}"
+            )
         
     except HTTPException:
         raise
+    except ValueError as ve:
+        print(f"ERROR: Validation error: {str(ve)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Validation error: {str(ve)}"
+        )
     except Exception as e:
+        import logging
+        logging.error(f"Failed to update user: {str(e)}")
+        print(f"ERROR: Failed to update user: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update user: {str(e)}"
