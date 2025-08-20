@@ -45,17 +45,10 @@ class EmailService:
                         margin: 0 auto;
                         padding: 20px;
                     }}
-                    .header {{
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                        color: white;
-                        padding: 30px;
-                        text-align: center;
-                        border-radius: 10px 10px 0 0;
-                    }}
                     .content {{
                         background: #f8f9fa;
                         padding: 30px;
-                        border-radius: 0 0 10px 10px;
+                        border-radius: 10px;
                     }}
                     .verification-code {{
                         background: #007bff;
@@ -87,11 +80,6 @@ class EmailService:
                 </style>
             </head>
             <body>
-                <div class="header">
-                    <h1>🔐 LogiScore Verification</h1>
-                    <p>Your secure access code</p>
-                </div>
-                
                 <div class="content">
                     <h2>Hello!</h2>
                     <p>You've requested a verification code to access your LogiScore account.</p>
