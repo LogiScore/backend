@@ -476,7 +476,8 @@ async def update_user(
                 )
             
             # Test database connection with a simple query
-            test_result = db.execute("SELECT 1").scalar()
+            from sqlalchemy import text
+            test_result = db.execute(text("SELECT 1")).scalar()
             print(f"DEBUG: Database connection test result: {test_result}")
             
             user = db.query(User).filter(User.id == user_id).first()
