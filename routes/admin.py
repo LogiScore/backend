@@ -117,6 +117,8 @@ class AdminCompany(BaseModel):
     name: str
     website: Optional[str]
     logo_url: Optional[str]
+    description: Optional[str]
+    headquarters_country: Optional[str]
     branches_count: int
     reviews_count: int
     status: str
@@ -165,6 +167,9 @@ class UserUpdateRequest(BaseModel):
 class CompanyCreate(BaseModel):
     name: str
     website: Optional[str] = None
+    logo_url: Optional[str] = None
+    description: Optional[str] = None
+    headquarters_country: Optional[str] = None
 
 class CompanyUpdateRequest(BaseModel):
     name: Optional[str] = None
@@ -820,6 +825,8 @@ async def get_companies(
                 name=company.name,
                 website=company.website,
                 logo_url=company.logo_url,
+                description=company.description,
+                headquarters_country=company.headquarters_country,
                 branches_count=branches_count,
                 reviews_count=reviews_count,
                 status="active"
@@ -854,7 +861,10 @@ async def create_company(
         new_company = FreightForwarder(
             id=str(uuid.uuid4()),
             name=company_data.name,
-            website=company_data.website
+            website=company_data.website,
+            logo_url=company_data.logo_url,
+            description=company_data.description,
+            headquarters_country=company_data.headquarters_country
         )
         
         db.add(new_company)
@@ -866,6 +876,8 @@ async def create_company(
             name=new_company.name,
             website=new_company.website,
             logo_url=new_company.logo_url,
+            description=new_company.description,
+            headquarters_country=new_company.headquarters_country,
             branches_count=0,
             reviews_count=0,
             status="active"
