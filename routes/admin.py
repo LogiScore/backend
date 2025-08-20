@@ -103,10 +103,27 @@ class AdminDispute(BaseModel):
     def from_orm(cls, obj):
         # Convert UUID to string for the id field
         # Convert datetime to ISO string for created_at
+        # Handle both production and development schemas
+        issue = "Unknown Issue"
+        if hasattr(obj, 'reason') and obj.reason:
+            issue = obj.reason
+        elif hasattr(obj, 'dispute_type') and obj.dispute_type:
+            issue = obj.dispute_type
+        elif hasattr(obj, 'description') and obj.description:
+            issue = obj.description[:100] + "..." if len(obj.description) > 100 else obj.description
+        
+        freight_forwarder_name = "Unknown Company"
+        if hasattr(obj, 'freight_forwarder_id') and obj.freight_forwarder_id:
+            # Production schema - direct ID
+            freight_forwarder_name = "Company ID: " + str(obj.freight_forwarder_id)[:8] + "..."
+        elif obj.freight_forwarder:
+            # Development schema - relationship
+            freight_forwarder_name = obj.freight_forwarder.name
+        
         data = {
             'id': str(obj.id),
-            'freight_forwarder_name': obj.freight_forwarder.name if obj.freight_forwarder else "Unknown Company",
-            'issue': obj.issue,
+            'freight_forwarder_name': freight_forwarder_name,
+            'issue': issue,
             'status': obj.status,
             'created_at': obj.created_at.isoformat() if obj.created_at else None
         }
@@ -327,14 +344,31 @@ async def get_recent_activity(
         # Get recent disputes
         recent_disputes = db.query(Dispute).order_by(Dispute.created_at.desc()).limit(limit//2).all()
         for dispute in recent_disputes:
-            # Get freight forwarder name through the review relationship
+            # Get freight forwarder name - try multiple possible fields for production schema compatibility
             freight_forwarder_name = "Unknown"
-            if dispute.review and dispute.review.freight_forwarder:
+            if hasattr(dispute, 'freight_forwarder_id') and dispute.freight_forwarder_id:
+                # Direct freight_forwarder_id field (production schema)
+                freight_forwarder = db.query(FreightForwarder).filter(FreightForwarder.id == dispute.freight_forwarder_id).first()
+                if freight_forwarder:
+                    freight_forwarder_name = freight_forwarder.name
+            elif dispute.review and dispute.review.freight_forwarder:
+                # Through review relationship (development schema)
                 freight_forwarder_name = dispute.review.freight_forwarder.name
             
-            # Get reporter name safely
+            # Get reporter name safely - try multiple possible fields for production schema compatibility
             reporter_name = "Unknown"
-            if dispute.reporter and hasattr(dispute.reporter, 'username'):
+            if hasattr(dispute, 'user_id') and dispute.user_id:
+                # Direct user_id field (production schema)
+                user = db.query(User).filter(User.id == dispute.user_id).first()
+                if user:
+                    reporter_name = user.username or user.full_name or user.email or "User"
+            elif hasattr(dispute, 'reported_by') and dispute.reported_by:
+                # reported_by field (expected schema)
+                user = db.query(User).filter(User.id == dispute.reported_by).first()
+                if user:
+                    reporter_name = user.username or user.full_name or user.email or "User"
+            elif dispute.reporter:
+                # Through reporter relationship
                 reporter_name = dispute.reporter.username or dispute.reporter.full_name or dispute.reporter.email or "User"
             
             activities.append(RecentActivity(
@@ -770,7 +804,8 @@ async def get_disputes(
 ):
     """Get disputes for admin resolution"""
     try:
-        query = db.query(Dispute).join(FreightForwarder)
+        # Query disputes without join to avoid schema compatibility issues
+        query = db.query(Dispute)
         
         if status_filter:
             query = query.filter(Dispute.status == status_filter)
@@ -778,14 +813,7 @@ async def get_disputes(
         disputes = query.offset(skip).limit(limit).all()
         
         return [
-            AdminDispute(
-                id=str(dispute.id),
-                freight_forwarder_name=dispute.freight_forwarder.name if dispute.freight_forwarder else "Unknown Company",
-                issue=dispute.reason,
-                status=dispute.status,
-                created_at=dispute.created_at.isoformat() if dispute.created_at else None
-            )
-            for dispute in disputes
+            AdminDispute.from_orm(dispute) for dispute in disputes
         ]
     except Exception as e:
         raise HTTPException(
