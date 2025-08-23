@@ -52,6 +52,15 @@ def verify_token(token: str) -> Optional[dict]:
     except JWTError:
         return None
 
+def verify_expired_token(token: str) -> Optional[dict]:
+    """Verify and decode an expired JWT token for refresh purposes"""
+    try:
+        # Decode without expiration validation
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": False})
+        return payload
+    except JWTError:
+        return None
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)

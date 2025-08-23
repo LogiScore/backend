@@ -10,7 +10,7 @@ import os
 
 from database.database import get_db
 from database.models import User
-from auth.auth import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
+from auth.auth import create_access_token, verify_expired_token, ACCESS_TOKEN_EXPIRE_MINUTES
 from email_service import email_service
 
 router = APIRouter()
@@ -34,6 +34,9 @@ class SignupVerificationRequest(BaseModel):
     company_name: Optional[str] = None
     user_type: Optional[str] = "shipper"
 
+class RefreshTokenRequest(BaseModel):
+    token: str
+
 class EmailAuthResponse(BaseModel):
     message: str
     expires_in: int
@@ -42,6 +45,11 @@ class CodeVerificationResponse(BaseModel):
     access_token: str
     token_type: str
     user: dict
+
+class RefreshTokenResponse(BaseModel):
+    access_token: str
+    token_type: str
+    expires_in: int
 
 def generate_verification_code() -> str:
     """Generate a 6-digit verification code"""
@@ -349,4 +357,66 @@ async def verify_code(
     db: Session = Depends(get_db)
 ):
     """Legacy endpoint - redirects to signup verification flow"""
-    return await verify_signup_code(request, db) 
+    return await verify_signup_code(request, db)
+
+@router.post("/refresh", response_model=RefreshTokenResponse)
+async def refresh_token(
+    request: RefreshTokenRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Refresh an expired JWT token
+    
+    This endpoint accepts an expired JWT token, validates it (ignoring expiration),
+    and returns a new valid JWT token if the user still exists and is active.
+    """
+    try:
+        # Validate the expired token (ignoring expiration)
+        payload = verify_expired_token(request.token)
+        if payload is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token format"
+            )
+        
+        # Extract user ID from token
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token missing user identifier"
+            )
+        
+        # Check if user exists and is active
+        user = db.query(User).filter(User.id == user_id).first()
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found"
+            )
+        
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User account is inactive"
+            )
+        
+        # Generate new access token
+        access_token = create_access_token(data={"sub": str(user.id)})
+        
+        return RefreshTokenResponse(
+            access_token=access_token,
+            token_type="bearer",
+            expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60  # Convert to seconds
+        )
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        # Log the error for debugging
+        print(f"Token refresh error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to refresh token"
+        ) 
