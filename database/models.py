@@ -216,8 +216,8 @@ class Dispute(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
     # Relationships
-    review = relationship("Review", backref="disputes")
-    reporter = relationship("User", foreign_keys=[reported_by], backref="reported_disputes")
+    review = relationship("Review", back_populates="disputes")
+    reporter = relationship("User", foreign_keys=[reported_by], back_populates="reported_disputes")
 
 class AdCampaign(Base):
     __tablename__ = "ad_campaigns"
