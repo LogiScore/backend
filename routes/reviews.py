@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional, Union
 from uuid import UUID
@@ -47,6 +47,17 @@ class ReviewResponse(BaseModel):
     weighted_rating: float
     total_questions_rated: int
     created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class ReviewsListResponse(BaseModel):
+    reviews: List[ReviewResponse]
+    total_count: int
+    page: int
+    page_size: int
+    total_pages: int
+    filters: dict
 
     class Config:
         from_attributes = True
@@ -571,3 +582,259 @@ async def get_review(
         )
     
     return review 
+
+@router.get("/", response_model=ReviewsListResponse)
+async def get_reviews(
+    country: Optional[str] = Query(None, description="Filter reviews by country"),
+    city: Optional[str] = Query(None, description="Filter reviews by city"),
+    freight_forwarder_id: Optional[UUID] = Query(None, description="Filter reviews by freight forwarder ID"),
+    search: Optional[str] = Query(None, description="Search in review content"),
+    page: int = Query(1, ge=1, description="Page number for pagination"),
+    page_size: int = Query(20, ge=1, le=100, description="Number of reviews per page"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get reviews with filtering and pagination support.
+    
+    Supports filtering by:
+    - country: Filter reviews by country
+    - city: Filter reviews by city (optionally with country)
+    - freight_forwarder_id: Filter reviews by specific freight forwarder
+    - search: Search in review content
+    
+    Supports pagination with page and page_size parameters.
+    """
+    try:
+        # Build the base query
+        query = db.query(Review).filter(Review.is_active == True)
+        
+        # Apply filters
+        filters = {}
+        
+        if country:
+            # Case-insensitive country filter
+            query = query.filter(Review.country.ilike(f"%{country}%"))
+            filters["country"] = country
+        
+        if city:
+            # Case-insensitive city filter
+            query = query.filter(Review.city.ilike(f"%{city}%"))
+            filters["city"] = city
+        
+        if freight_forwarder_id:
+            query = query.filter(Review.freight_forwarder_id == freight_forwarder_id)
+            filters["freight_forwarder_id"] = str(freight_forwarder_id)
+        
+        if search:
+            # Search in review content through category scores
+            from sqlalchemy import or_
+            query = query.join(ReviewCategoryScore).filter(
+                or_(
+                    ReviewCategoryScore.question_text.ilike(f"%{search}%"),
+                    ReviewCategoryScore.category_name.ilike(f"%{search}%"),
+                    ReviewCategoryScore.rating_definition.ilike(f"%{search}%")
+                )
+            ).distinct()
+            filters["search"] = search
+        
+        # Get total count before pagination
+        total_count = query.count()
+        
+        # Apply pagination
+        offset = (page - 1) * page_size
+        query = query.order_by(Review.created_at.desc()).offset(offset).limit(page_size)
+        
+        # Execute query
+        reviews = query.all()
+        
+        # Calculate total pages
+        total_pages = (total_count + page_size - 1) // page_size
+        
+        # Convert to response models
+        review_responses = []
+        for review in reviews:
+            # Create a dummy location_id for response (using branch_id as fallback)
+            location_id = review.branch_id if review.branch_id else uuid.uuid4()
+            
+            review_response = ReviewResponse(
+                id=review.id,
+                freight_forwarder_id=review.freight_forwarder_id,
+                location_id=location_id,
+                city=review.city,
+                country=review.country,
+                review_type=review.review_type,
+                is_anonymous=review.is_anonymous,
+                review_weight=float(review.review_weight) if review.review_weight else 1.0,
+                aggregate_rating=float(review.aggregate_rating) if review.aggregate_rating else 0.0,
+                weighted_rating=float(review.weighted_rating) if review.weighted_rating else 0.0,
+                total_questions_rated=review.total_questions_rated,
+                created_at=review.created_at
+            )
+            review_responses.append(review_response)
+        
+        return ReviewsListResponse(
+            reviews=review_responses,
+            total_count=total_count,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+            filters=filters
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in get_reviews: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve reviews: {str(e)}"
+        )
+
+@router.get("/countries", response_model=List[str])
+async def get_available_countries(db: Session = Depends(get_db)):
+    """
+    Get list of all available countries that have reviews.
+    Useful for frontend filtering dropdowns.
+    """
+    try:
+        # Get distinct countries from reviews table
+        countries = db.query(Review.country).filter(
+            Review.country.isnot(None),
+            Review.country != "",
+            Review.is_active == True
+        ).distinct().all()
+        
+        # Extract country names and filter out None/empty values
+        country_list = [country[0] for country in countries if country[0] and country[0].strip()]
+        
+        # Sort alphabetically
+        country_list.sort()
+        
+        return country_list
+        
+    except Exception as e:
+        logger.error(f"Error in get_available_countries: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve countries: {str(e)}"
+        )
+
+@router.get("/cities", response_model=List[dict])
+async def get_available_cities(
+    country: Optional[str] = Query(None, description="Filter cities by country"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get list of all available cities that have reviews.
+    Optionally filter by country.
+    Useful for frontend filtering dropdowns.
+    """
+    try:
+        # Build the base query
+        query = db.query(Review.city, Review.country).filter(
+            Review.city.isnot(None),
+            Review.city != "",
+            Review.is_active == True
+        )
+        
+        # Apply country filter if provided
+        if country:
+            query = query.filter(Review.country.ilike(f"%{country}%"))
+        
+        # Get distinct cities
+        cities = query.distinct().all()
+        
+        # Extract city data and filter out None/empty values
+        city_list = []
+        for city_data in cities:
+            if city_data[0] and city_data[0].strip():
+                city_list.append({
+                    "city": city_data[0],
+                    "country": city_data[1] if city_data[1] else "Unknown"
+                })
+        
+        # Sort by city name
+        city_list.sort(key=lambda x: x["city"])
+        
+        return city_list
+        
+    except Exception as e:
+        logger.error(f"Error in get_available_cities: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve cities: {str(e)}"
+        )
+
+@router.get("/statistics/location", response_model=dict)
+async def get_review_statistics_by_location(
+    country: Optional[str] = Query(None, description="Filter statistics by country"),
+    city: Optional[str] = Query(None, description="Filter statistics by city"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get review statistics filtered by location.
+    Provides counts, average ratings, and other metrics.
+    """
+    try:
+        # Build the base query
+        query = db.query(Review).filter(Review.is_active == True)
+        
+        # Apply location filters
+        if country:
+            query = query.filter(Review.country.ilike(f"%{country}%"))
+        
+        if city:
+            query = query.filter(Review.city.ilike(f"%{city}%"))
+        
+        # Get all reviews for the location
+        reviews = query.all()
+        
+        if not reviews:
+            return {
+                "total_reviews": 0,
+                "average_rating": 0.0,
+                "total_weighted_rating": 0.0,
+                "review_types": {},
+                "anonymous_count": 0,
+                "authenticated_count": 0,
+                "location": {
+                    "country": country,
+                    "city": city
+                }
+            }
+        
+        # Calculate statistics
+        total_reviews = len(reviews)
+        total_rating = sum(review.aggregate_rating or 0 for review in reviews if review.aggregate_rating is not None)
+        valid_ratings = sum(1 for review in reviews if review.aggregate_rating is not None)
+        average_rating = total_rating / valid_ratings if valid_ratings > 0 else 0.0
+        
+        total_weighted_rating = sum(review.weighted_rating or 0 for review in reviews if review.weighted_rating is not None)
+        
+        # Count review types
+        review_types = {}
+        for review in reviews:
+            review_type = review.review_type or "general"
+            review_types[review_type] = review_types.get(review_type, 0) + 1
+        
+        # Count anonymous vs authenticated
+        anonymous_count = sum(1 for review in reviews if review.is_anonymous)
+        authenticated_count = total_reviews - anonymous_count
+        
+        return {
+            "total_reviews": total_reviews,
+            "average_rating": round(average_rating, 2),
+            "total_weighted_rating": round(total_weighted_rating, 2),
+            "review_types": review_types,
+            "anonymous_count": anonymous_count,
+            "authenticated_count": authenticated_count,
+            "location": {
+                "country": country,
+                "city": city
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in get_review_statistics_by_location: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve review statistics: {str(e)}"
+        ) 
