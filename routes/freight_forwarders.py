@@ -91,6 +91,7 @@ async def get_freight_forwarders(
                 try:
                     if ff.reviews:
                         category_totals = {}
+                        category_weights = {}
                         category_review_counts = {}
                         category_names = {}
                         
@@ -103,13 +104,17 @@ async def get_freight_forwarders(
                                 category_name = category_score.category_name
                                 
                                 if category_id not in category_totals:
-                                    category_totals[category_id] = 0
+                                    category_totals[category_id] = []
+                                    category_weights[category_id] = []
                                     category_review_counts[category_id] = set()
                                     category_names[category_id] = category_name
                                 
-                                # Add weighted rating (rating * weight)
-                                weighted_rating = (category_score.rating or 0) * (category_score.weight or 1.0)
-                                category_totals[category_id] += weighted_rating
+                                # Store individual ratings and weights for averaging
+                                rating_value = category_score.rating if category_score.rating is not None else 0
+                                weight_value = category_score.weight if category_score.weight is not None else 1.0
+                                
+                                category_totals[category_id].append(rating_value)
+                                category_weights[category_id].append(weight_value)
                                 
                                 # Track unique reviews per category
                                 review_categories.add(category_id)
@@ -122,8 +127,20 @@ async def get_freight_forwarders(
                         category_scores = {}
                         for category_id in category_totals:
                             if len(category_review_counts[category_id]) > 0:
+                                # Calculate weighted average for this category
+                                ratings = category_totals[category_id]
+                                weights = category_weights[category_id]
+                                
+                                if ratings and weights:
+                                    # Calculate weighted average: sum(rating * weight) / sum(weight)
+                                    total_weighted_rating = sum(r * w for r, w in zip(ratings, weights))
+                                    total_weight = sum(weights)
+                                    average_rating = total_weighted_rating / total_weight if total_weight > 0 else 0
+                                else:
+                                    average_rating = 0
+                                
                                 category_scores[category_id] = {
-                                    "average_rating": category_totals[category_id] / len(category_review_counts[category_id]),
+                                    "average_rating": average_rating,  # ✅ AVERAGE, not sum
                                     "total_reviews": len(category_review_counts[category_id]),  # Count unique reviews, not questions
                                     "category_name": category_names[category_id]
                                 }
@@ -350,19 +367,17 @@ async def get_freight_forwarder(
                     category_name = category_score.category_name
                     
                     if category_id not in category_totals:
-                        category_totals[category_id] = 0
+                        category_totals[category_id] = []
+                        category_weights[category_id] = []
                         category_review_counts[category_id] = set()
                         category_names[category_id] = category_name
                     
-                    # Add weighted rating (rating * weight)
+                    # Store individual ratings and weights for averaging
                     rating_value = category_score.rating if category_score.rating is not None else 0
                     weight_value = category_score.weight if category_score.weight is not None else 1.0
-                    weighted_rating = rating_value * weight_value
                     
-                    # Debug logging
-                    print(f"DEBUG: Category {category_name}, Rating: {category_score.rating} (converted: {rating_value}), Weight: {category_score.weight} (converted: {weight_value}), Weighted: {weighted_rating}")
-                    
-                    category_totals[category_id] += weighted_rating
+                    category_totals[category_id].append(rating_value)
+                    category_weights[category_id].append(weight_value)
                     
                     # Track unique reviews per category
                     review_categories.add(category_id)
@@ -375,8 +390,20 @@ async def get_freight_forwarder(
             category_scores = {}
             for category_id in category_totals:
                 if len(category_review_counts[category_id]) > 0:
+                    # Calculate weighted average for this category
+                    ratings = category_totals[category_id]
+                    weights = category_weights[category_id]
+                    
+                    if ratings and weights:
+                        # Calculate weighted average: sum(rating * weight) / sum(weight)
+                        total_weighted_rating = sum(r * w for r, w in zip(ratings, weights))
+                        total_weight = sum(weights)
+                        average_rating = total_weighted_rating / total_weight if total_weight > 0 else 0
+                    else:
+                        average_rating = 0
+                    
                     category_scores[category_id] = {
-                        "average_rating": category_totals[category_id] / len(category_review_counts[category_id]),
+                        "average_rating": average_rating,  # ✅ AVERAGE, not sum
                         "total_reviews": len(category_review_counts[category_id]),  # Count unique reviews, not questions
                         "category_name": category_names[category_id]
                     }
