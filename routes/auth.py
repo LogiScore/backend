@@ -68,10 +68,10 @@ async def send_signin_code(
         # Check if user exists - only send codes to registered users for sign-in
         user = db.query(User).filter(User.email == email).first()
         if not user:
-            # Don't reveal if user exists or not for security
-            return EmailAuthResponse(
-                message="Verification code sent to your email",
-                expires_in=10
+            # User doesn't exist - return error directing them to sign up
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User not found. Please sign up instead."
             )
         
         # Generate verification code

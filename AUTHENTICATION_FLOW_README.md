@@ -34,7 +34,7 @@ Content-Type: application/json
 **Behavior:**
 - ✅ Only sends codes to **existing** users
 - ✅ Updates existing user's verification code
-- ✅ Returns success message (doesn't reveal user existence for security)
+- ✅ Returns error if user doesn't exist (directs to sign-up)
 - ❌ Does NOT create new users
 
 **Response:**
@@ -119,10 +119,10 @@ Content-Type: application/json
 
 ## Security Features
 
-### User Existence Privacy
-- Sign-in endpoint doesn't reveal whether a user exists
-- Both endpoints return the same success message for security
-- Prevents email enumeration attacks
+### User Existence Validation
+- Sign-in endpoint explicitly checks if user exists
+- Returns clear error message directing non-existent users to sign-up
+- Prevents unauthorized access attempts
 
 ### Duplicate Prevention
 - Sign-up endpoint explicitly checks for existing users
@@ -174,6 +174,21 @@ async function completeSignup(email, code, fullName, companyName, userType) {
 ### Error Handling
 
 ```javascript
+// For Sign-In (existing users)
+try {
+  const result = await authMethods.requestSigninCode(email);
+} catch (error) {
+  if (error.response?.status === 400 && 
+      error.response?.data?.detail?.includes("User not found")) {
+    // User doesn't exist - redirect to sign-up
+    showSignupForm();
+  } else {
+    // Handle other errors
+    showErrorMessage(error.message);
+  }
+}
+
+// For Sign-Up (new users)
 try {
   const result = await authMethods.requestSignupCode(email, userType);
 } catch (error) {
