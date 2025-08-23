@@ -355,6 +355,7 @@ async def get_freight_forwarder(
     try:
         if filtered_reviews:
             category_totals = {}
+            category_weights = {}
             category_review_counts = {}
             category_names = {}
             
