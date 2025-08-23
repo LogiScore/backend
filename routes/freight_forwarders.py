@@ -124,9 +124,11 @@ async def get_freight_forwarders_aggregated(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     search: Optional[str] = Query(None),
+    city: Optional[str] = Query(None, description="Filter by city"),
+    country: Optional[str] = Query(None, description="Filter by country"),
     db: Session = Depends(get_db)
 ):
-    """Get freight forwarders with efficiently calculated aggregated data using SQL"""
+    """Get freight forwarders with efficiently calculated aggregated data using SQL and location filtering"""
     try:
         from sqlalchemy import func, case, text
         
@@ -149,6 +151,12 @@ async def get_freight_forwarders_aggregated(
             func.sum(Review.review_weight).label('calculated_weighted_count')
         ).outerjoin(Review, FreightForwarder.id == Review.freight_forwarder_id)
         
+        # Apply location filters
+        if city:
+            query = query.filter(Review.city.ilike(f"%{city}%"))
+        if country:
+            query = query.filter(Review.country.ilike(f"%{country}%"))
+        
         if search:
             query = query.filter(FreightForwarder.name.ilike(f"%{search}%"))
         
@@ -168,18 +176,26 @@ async def get_freight_forwarders_aggregated(
         # Convert to response model
         freight_forwarders = []
         for result in results:
-            # Get category scores summary for this freight forwarder
+            # Get category scores summary for this freight forwarder with location filtering
             category_scores = {}
             try:
-                # Query category scores for this specific freight forwarder
+                # Query category scores for this specific freight forwarder with location filters
                 category_query = db.query(
                     ReviewCategoryScore.category_id,
                     ReviewCategoryScore.category_name,
                     func.avg(ReviewCategoryScore.rating * ReviewCategoryScore.weight).label('avg_weighted_rating'),
-                    func.count(ReviewCategoryScore.id).label('total_questions')
+                    func.count(func.distinct(Review.id)).label('total_reviews')  # Count distinct reviews, not questions
                 ).join(Review, ReviewCategoryScore.review_id == Review.id).filter(
                     Review.freight_forwarder_id == result.id
-                ).group_by(
+                )
+                
+                # Apply location filters to category scores
+                if city:
+                    category_query = category_query.filter(Review.city.ilike(f"%{city}%"))
+                if country:
+                    category_query = category_query.filter(Review.country.ilike(f"%{country}%"))
+                
+                category_query = category_query.group_by(
                     ReviewCategoryScore.category_id,
                     ReviewCategoryScore.category_name
                 )
@@ -188,7 +204,7 @@ async def get_freight_forwarders_aggregated(
                 for cat_result in category_results:
                     category_scores[cat_result.category_id] = {
                         "average_rating": float(cat_result.avg_weighted_rating or 0),
-                        "total_reviews": int(cat_result.total_questions or 0),
+                        "total_reviews": int(cat_result.total_reviews or 0),  # This now counts reviews, not questions
                         "category_name": cat_result.category_name
                     }
             except Exception as e:
@@ -220,9 +236,11 @@ async def get_freight_forwarders_aggregated(
 @router.get("/{freight_forwarder_id}", response_model=FreightForwarderResponse)
 async def get_freight_forwarder(
     freight_forwarder_id: str,
+    city: Optional[str] = Query(None, description="Filter by city"),
+    country: Optional[str] = Query(None, description="Filter by country"),
     db: Session = Depends(get_db)
 ):
-    """Get specific freight forwarder by ID"""
+    """Get specific freight forwarder by ID with optional location filtering"""
     freight_forwarder = db.query(FreightForwarder).filter(
         FreightForwarder.id == freight_forwarder_id
     ).first()
@@ -230,37 +248,96 @@ async def get_freight_forwarder(
     if not freight_forwarder:
         raise HTTPException(status_code=404, detail="Freight forwarder not found")
     
-    # Calculate company rating from reviews.aggregate_rating
+    # Apply location filtering to reviews if city/country parameters are provided
+    filtered_reviews = freight_forwarder.reviews
+    
+    if city or country:
+        filtered_reviews = []
+        for review in freight_forwarder.reviews:
+            # Apply city filter (case-insensitive partial match)
+            if city and review.city:
+                if city.lower() not in review.city.lower():
+                    continue
+            
+            # Apply country filter (case-insensitive partial match)
+            if country and review.country:
+                if country.lower() not in review.country.lower():
+                    continue
+            
+            filtered_reviews.append(review)
+    
+    # Calculate company rating from filtered reviews
     try:
-        avg_rating = freight_forwarder.average_rating if hasattr(freight_forwarder, 'average_rating') else 0.0
+        if filtered_reviews:
+            valid_ratings = [review.aggregate_rating for review in filtered_reviews if review.aggregate_rating is not None]
+            avg_rating = sum(valid_ratings) / len(valid_ratings) if valid_ratings else 0.0
+        else:
+            avg_rating = 0.0
     except Exception:
         avg_rating = 0.0
     
-    # Count total reviews for each company
+    # Count total reviews for each company (filtered)
     try:
-        review_count = freight_forwarder.review_count if hasattr(freight_forwarder, 'review_count') else 0
+        review_count = len(filtered_reviews)
     except Exception:
         review_count = 0
     
-    # Calculate total aggregated score
+    # Calculate total aggregated score (filtered)
     try:
-        total_score = freight_forwarder.total_aggregated_score if hasattr(freight_forwarder, 'total_aggregated_score') else 0.0
+        total_score = sum(review.aggregate_rating or 0 for review in filtered_reviews if review.aggregate_rating is not None)
     except Exception:
         total_score = 0.0
     
-    # Calculate weighted review count
+    # Calculate weighted review count (filtered)
     try:
-        weighted_count = freight_forwarder.weighted_review_count if hasattr(freight_forwarder, 'weighted_review_count') else 0.0
-        # Fallback: if weighted_count is 0 or None, use review_count instead
-        if not weighted_count or weighted_count == 0:
-            weighted_count = review_count
+        weighted_count = sum(review.review_weight or 1.0 for review in filtered_reviews)
     except Exception:
         weighted_count = review_count  # Fallback to review_count
     
-    # Aggregate category scores from review_category_scores
+    # Calculate category scores summary with location filtering
     try:
-        category_scores = freight_forwarder.category_scores_summary if hasattr(freight_forwarder, 'category_scores_summary') else {}
-    except Exception:
+        if filtered_reviews:
+            category_totals = {}
+            category_review_counts = {}
+            category_names = {}
+            
+            for review in filtered_reviews:
+                # Track which categories this review contributes to
+                review_categories = set()
+                
+                for category_score in review.category_scores:
+                    category_id = category_score.category_id
+                    category_name = category_score.category_name
+                    
+                    if category_id not in category_totals:
+                        category_totals[category_id] = 0
+                        category_review_counts[category_id] = set()
+                        category_names[category_id] = category_name
+                    
+                    # Add weighted rating (rating * weight)
+                    weighted_rating = (category_score.rating or 0) * (category_score.weight or 1.0)
+                    category_totals[category_id] += weighted_rating
+                    
+                    # Track unique reviews per category
+                    review_categories.add(category_id)
+                
+                # Add this review to the count for each category it covers
+                for category_id in review_categories:
+                    category_review_counts[category_id].add(review.id)
+            
+            # Calculate averages for each category
+            category_scores = {}
+            for category_id in category_totals:
+                if len(category_review_counts[category_id]) > 0:
+                    category_scores[category_id] = {
+                        "average_rating": category_totals[category_id] / len(category_review_counts[category_id]),
+                        "total_reviews": len(category_review_counts[category_id]),  # Count unique reviews, not questions
+                        "category_name": category_names[category_id]
+                    }
+        else:
+            category_scores = {}
+    except Exception as e:
+        print(f"Error calculating category scores: {e}")
         category_scores = {}
     
     # Create response manually to avoid SQL generation issues

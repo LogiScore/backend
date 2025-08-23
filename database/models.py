@@ -43,6 +43,7 @@ class User(Base):
     # Relationships
     reviews = relationship("Review", back_populates="user")
     sessions = relationship("UserSession", back_populates="user")
+    reported_disputes = relationship("Dispute", foreign_keys="Dispute.reported_by", back_populates="reporter")
 
 class FreightForwarder(Base):
     __tablename__ = "freight_forwarders"
@@ -108,32 +109,41 @@ class FreightForwarder(Base):
             return {}
         
         category_totals = {}
-        category_counts = {}
+        category_review_counts = {}  # Track unique reviews per category
+        category_names = {}
         
         for review in self.reviews:
+            # Track which categories this review contributes to
+            review_categories = set()
+            
             for category_score in review.category_scores:
                 category_id = category_score.category_id
                 category_name = category_score.category_name
                 
                 if category_id not in category_totals:
                     category_totals[category_id] = 0
-                    category_counts[category_id] = 0
+                    category_review_counts[category_id] = set()  # Use set to avoid duplicate reviews
+                    category_names[category_id] = category_name
                 
                 # Add weighted rating (rating * weight)
                 weighted_rating = (category_score.rating or 0) * (category_score.weight or 1.0)
                 category_totals[category_id] += weighted_rating
-                category_counts[category_id] += 1
+                
+                # Track unique reviews per category
+                review_categories.add(category_id)
+            
+            # Add this review to the count for each category it covers
+            for category_id in review_categories:
+                category_review_counts[category_id].add(review.id)
         
         # Calculate averages for each category
         category_averages = {}
         for category_id in category_totals:
-            if category_counts[category_id] > 0:
+            if len(category_review_counts[category_id]) > 0:
                 category_averages[category_id] = {
-                    "average_rating": category_totals[category_id] / category_counts[category_id],
-                    "total_reviews": category_counts[category_id],
-                    "category_name": next((score.category_name for review in self.reviews 
-                                        for score in review.category_scores 
-                                        if score.category_id == category_id), "Unknown")
+                    "average_rating": category_totals[category_id] / len(category_review_counts[category_id]),
+                    "total_reviews": len(category_review_counts[category_id]),  # Count unique reviews, not questions
+                    "category_name": category_names[category_id]
                 }
         
         return category_averages
@@ -181,6 +191,7 @@ class Review(Base):
     user = relationship("User", back_populates="reviews")
     freight_forwarder = relationship("FreightForwarder", back_populates="reviews")
     category_scores = relationship("ReviewCategoryScore", back_populates="review")
+    disputes = relationship("Dispute", back_populates="review")
 
 class ReviewCategoryScore(Base):
     __tablename__ = "review_category_scores"
@@ -242,6 +253,10 @@ class Dispute(Base):
     resolved_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    review = relationship("Review", backref="disputes")
+    reporter = relationship("User", foreign_keys=[reported_by], backref="reported_disputes")
 
 class AdCampaign(Base):
     __tablename__ = "ad_campaigns"
