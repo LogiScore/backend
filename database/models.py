@@ -105,48 +105,9 @@ class FreightForwarder(Base):
     @hybrid_property
     def category_scores_summary(self):
         """Aggregate category scores from review_category_scores"""
-        if not self.reviews:
-            return {}
-        
-        category_totals = {}
-        category_review_counts = {}  # Track unique reviews per category
-        category_names = {}
-        
-        for review in self.reviews:
-            # Track which categories this review contributes to
-            review_categories = set()
-            
-            for category_score in review.category_scores:
-                category_id = category_score.category_id
-                category_name = category_score.category_name
-                
-                if category_id not in category_totals:
-                    category_totals[category_id] = 0
-                    category_review_counts[category_id] = set()  # Use set to avoid duplicate reviews
-                    category_names[category_id] = category_name
-                
-                # Add weighted rating (rating * weight)
-                weighted_rating = (category_score.rating or 0) * (category_score.weight or 1.0)
-                category_totals[category_id] += weighted_rating
-                
-                # Track unique reviews per category
-                review_categories.add(category_id)
-            
-            # Add this review to the count for each category it covers
-            for category_id in review_categories:
-                category_review_counts[category_id].add(review.id)
-        
-        # Calculate averages for each category
-        category_averages = {}
-        for category_id in category_totals:
-            if len(category_review_counts[category_id]) > 0:
-                category_averages[category_id] = {
-                    "average_rating": category_totals[category_id] / len(category_review_counts[category_id]),
-                    "total_reviews": len(category_review_counts[category_id]),  # Count unique reviews, not questions
-                    "category_name": category_names[category_id]
-                }
-        
-        return category_averages
+        # Return empty dict to avoid SQLAlchemy mapper conflicts
+        # Complex calculation is handled in route handlers
+        return {}
 
 class Branch(Base):
     __tablename__ = "branches"
