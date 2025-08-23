@@ -355,7 +355,13 @@ async def get_freight_forwarder(
                         category_names[category_id] = category_name
                     
                     # Add weighted rating (rating * weight)
-                    weighted_rating = (category_score.rating or 0) * (category_score.weight or 1.0)
+                    rating_value = category_score.rating if category_score.rating is not None else 0
+                    weight_value = category_score.weight if category_score.weight is not None else 1.0
+                    weighted_rating = rating_value * weight_value
+                    
+                    # Debug logging
+                    print(f"DEBUG: Category {category_name}, Rating: {category_score.rating} (converted: {rating_value}), Weight: {category_score.weight} (converted: {weight_value}), Weighted: {weighted_rating}")
+                    
                     category_totals[category_id] += weighted_rating
                     
                     # Track unique reviews per category
