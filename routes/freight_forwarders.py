@@ -87,10 +87,50 @@ async def get_freight_forwarders(
                 except Exception:
                     review_count = 0
                 
-                # Aggregate category scores from review_category_scores
+                # Calculate category scores summary correctly (count reviews, not questions)
                 try:
-                    category_scores = ff.category_scores_summary if hasattr(ff, 'category_scores_summary') else {}
-                except Exception:
+                    if ff.reviews:
+                        category_totals = {}
+                        category_review_counts = {}
+                        category_names = {}
+                        
+                        for review in ff.reviews:
+                            # Track which categories this review contributes to
+                            review_categories = set()
+                            
+                            for category_score in review.category_scores:
+                                category_id = category_score.category_id
+                                category_name = category_score.category_name
+                                
+                                if category_id not in category_totals:
+                                    category_totals[category_id] = 0
+                                    category_review_counts[category_id] = set()
+                                    category_names[category_id] = category_name
+                                
+                                # Add weighted rating (rating * weight)
+                                weighted_rating = (category_score.rating or 0) * (category_score.weight or 1.0)
+                                category_totals[category_id] += weighted_rating
+                                
+                                # Track unique reviews per category
+                                review_categories.add(category_id)
+                            
+                            # Add this review to the count for each category it covers
+                            for category_id in review_categories:
+                                category_review_counts[category_id].add(review.id)
+                        
+                        # Calculate averages for each category
+                        category_scores = {}
+                        for category_id in category_totals:
+                            if len(category_review_counts[category_id]) > 0:
+                                category_scores[category_id] = {
+                                    "average_rating": category_totals[category_id] / len(category_review_counts[category_id]),
+                                    "total_reviews": len(category_review_counts[category_id]),  # Count unique reviews, not questions
+                                    "category_name": category_names[category_id]
+                                }
+                    else:
+                        category_scores = {}
+                except Exception as e:
+                    print(f"Error calculating category scores for {ff.name}: {e}")
                     category_scores = {}
                 
                 # Create response manually to avoid SQL generation issues
