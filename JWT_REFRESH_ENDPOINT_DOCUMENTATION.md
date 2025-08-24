@@ -253,3 +253,4 @@ Potential improvements for future versions:
 2. **Rate Limiting**: Add rate limiting to prevent abuse
 3. **Audit Logging**: Enhanced logging for security monitoring
 4. **Token Blacklisting**: Ability to blacklist compromised tokens
+

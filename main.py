@@ -109,6 +109,21 @@ async def fix_username_constraint():
     except Exception as e:
         return {"error": f"Username constraint fix failed: {str(e)}"}
 
+@app.get("/api/fix-dispute-schema")
+async def fix_dispute_schema():
+    """Fix dispute table schema mismatch"""
+    try:
+        from database.fix_dispute_schema import fix_dispute_schema, add_dispute_relationships
+        if fix_dispute_schema():
+            if add_dispute_relationships():
+                return {"message": "Dispute schema fix completed successfully"}
+            else:
+                return {"message": "Dispute schema fixed but relationships failed"}
+        else:
+            return {"error": "Dispute schema fix failed"}
+    except Exception as e:
+        return {"error": f"Dispute schema fix failed: {str(e)}"}
+
 # Add backward compatibility routes for auth endpoints
 app.include_router(auth.router, prefix="/auth", tags=["auth-compat"])
 

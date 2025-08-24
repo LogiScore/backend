@@ -7,15 +7,26 @@ from typing import List
 import logging
 from pydantic import BaseModel, EmailStr, validator
 import re
+import uuid
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-class ReviewThankYouRequest:
-    def __init__(self, review_id: str):
-        self.review_id = review_id
+class ReviewThankYouRequest(BaseModel):
+    review_id: str
+    
+    @validator('review_id')
+    def validate_review_id(cls, v):
+        if not v or len(v.strip()) == 0:
+            raise ValueError('review_id cannot be empty')
+        # Validate that it's a valid UUID format
+        try:
+            uuid.UUID(v.strip())
+        except ValueError:
+            raise ValueError('review_id must be a valid UUID')
+        return v.strip()
 
 class ContactFormData(BaseModel):
     name: str
@@ -105,7 +116,7 @@ async def send_contact_form(contact_data: ContactFormData):
 
 @router.post("/review-thank-you")
 async def send_review_thank_you_email(
-    request: dict,
+    request: ReviewThankYouRequest,
     db: Session = Depends(get_db)
 ):
     """
@@ -117,15 +128,19 @@ async def send_review_thank_you_email(
     }
     """
     try:
-        review_id = request.get("review_id")
-        if not review_id:
+        review_id = request.review_id
+        
+        # Convert string to UUID object for database query
+        try:
+            review_uuid = uuid.UUID(review_id)
+        except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="review_id is required"
+                detail="Invalid review_id format - must be a valid UUID"
             )
         
-        # Get review with related data
-        review = db.query(Review).filter(Review.id == review_id).first()
+        # Get review with related data using UUID object
+        review = db.query(Review).filter(Review.id == review_uuid).first()
         if not review:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -159,9 +174,9 @@ async def send_review_thank_you_email(
                 detail="Cannot send email for anonymous reviews or users without email"
             )
         
-        # Get category scores for the review
+        # Get category scores for the review using UUID object
         category_scores = db.query(ReviewCategoryScore).filter(
-            ReviewCategoryScore.review_id == review_id
+            ReviewCategoryScore.review_id == review_uuid
         ).all()
         
         # Format category scores for email

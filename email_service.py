@@ -15,8 +15,23 @@ class EmailService:
         self.from_email = os.getenv('FROM_EMAIL', 'noreply@logiscore.com')
         self.from_name = os.getenv('FROM_NAME', 'LogiScore')
         
-        if not self.api_key:
+        # Enhanced logging for configuration
+        if self.api_key:
+            logger.info(f"SendGrid API key loaded successfully. From email: {self.from_email}")
+            # Log first few characters of API key for debugging (safely)
+            if len(self.api_key) > 8:
+                logger.info(f"SendGrid API key starts with: {self.api_key[:8]}...")
+            else:
+                logger.warning("SendGrid API key seems too short")
+        else:
             logger.warning("SENDGRID_API_KEY not found in environment variables. Email sending will be disabled.")
+            logger.info("Available environment variables:")
+            for key, value in os.environ.items():
+                if 'SENDGRID' in key or 'EMAIL' in key or 'MAIL' in key:
+                    if 'KEY' in key and value:
+                        logger.info(f"  {key}: {value[:8]}... (truncated)")
+                    else:
+                        logger.info(f"  {key}: {value}")
     
     async def send_verification_code(self, to_email: str, verification_code: str) -> bool:
         """Send verification code email using SendGrid"""
@@ -262,11 +277,19 @@ class EmailService:
                                         city: str, country: str, category_scores: list) -> bool:
         """Send thank you email after review submission"""
         try:
+            logger.info(f"Attempting to send review thank you email to {to_email}")
+            logger.info(f"User: {user_name}, Freight Forwarder: {freight_forwarder_name}")
+            logger.info(f"Location: {city}, {country}")
+            logger.info(f"Category scores count: {len(category_scores)}")
+            
             if not self.api_key:
+                logger.warning("SendGrid API key not available - using fallback mode")
                 logger.info(f"FALLBACK: Review thank you email would be sent to {to_email}")
+                logger.info(f"FALLBACK: Subject: Thank you for your review of {freight_forwarder_name}!")
                 return True
             
             subject = f"Thank you for your review of {freight_forwarder_name}! 🚢"
+            logger.info(f"Email subject: {subject}")
             
             # Build category scores HTML
             category_scores_html = ""
@@ -416,6 +439,8 @@ class EmailService:
             </html>
             """
             
+            logger.info("Creating SendGrid message...")
+            
             # Create SendGrid message
             message = Mail(
                 from_email=Email(self.from_email, self.from_name),
@@ -424,24 +449,34 @@ class EmailService:
                 html_content=HtmlContent(html_content)
             )
             
+            logger.info("Initializing SendGrid client...")
+            
             # Send email
             sg = SendGridAPIClient(self.api_key)
             
             # Set EU data residency if needed
             if os.getenv('SENDGRID_EU_RESIDENCY', 'false').lower() == 'true':
+                logger.info("Setting EU data residency for SendGrid")
                 sg.set_sendgrid_data_residency("eu")
             
+            logger.info("Sending email via SendGrid...")
             response = sg.send(message)
+            
+            logger.info(f"SendGrid response status: {response.status_code}")
+            logger.info(f"SendGrid response headers: {dict(response.headers)}")
             
             if response.status_code == 202:
                 logger.info(f"Review thank you email sent successfully to {to_email}")
                 return True
             else:
                 logger.error(f"Failed to send review thank you email. Status code: {response.status_code}")
+                logger.error(f"SendGrid response body: {response.body}")
                 return False
                 
         except Exception as e:
             logger.error(f"Error sending review thank you email to {to_email}: {str(e)}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            logger.error(f"Exception details: {str(e)}")
             logger.info(f"FALLBACK: Review thank you email would be sent to {to_email}")
             return True  # Return True for fallback mode
 

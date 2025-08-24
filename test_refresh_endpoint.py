@@ -104,3 +104,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n💥 Error during testing: {e}")
         print("Make sure your FastAPI backend is running on the correct port")
+
