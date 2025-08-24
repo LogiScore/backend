@@ -36,6 +36,8 @@ app.add_middleware(
     allow_origins=[
         "http://logiscore.net",  # HTTP version
         "https://logiscore.net",  # HTTPS version
+        "https://www.logiscore.net",  # WWW subdomain
+        "http://www.logiscore.net",  # WWW subdomain HTTP
         "https://logiscore-frontend.vercel.app",
         "https://logiscore-frontend-git-main-evaluratenet.vercel.app",
         "https://*.vercel.app",  # Allow all Vercel subdomains
@@ -47,7 +49,7 @@ app.add_middleware(
         "*"  # Allow all origins for development (remove in production)
     ],
     allow_credentials=True,  # Required for JWT authentication headers
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
     allow_headers=["*"],
     expose_headers=["*"],
 )
@@ -131,6 +133,15 @@ app.include_router(auth.router, prefix="/auth", tags=["auth-compat"])
 from routes import webhooks
 app.include_router(webhooks.router, prefix="/api/webhooks", tags=["webhooks"])
 
+@app.get("/api/cors-test")
+async def cors_test():
+    """Test endpoint to verify CORS is working"""
+    return {
+        "message": "CORS test successful",
+        "timestamp": datetime.now().isoformat(),
+        "cors_enabled": True
+    }
+
 @app.get("/")
 async def root():
     """Health check endpoint"""
@@ -180,10 +191,7 @@ async def locations_simple():
         ]
     }
 
-@app.options("/{full_path:path}")
-async def options_handler(full_path: str):
-    """Handle CORS preflight requests"""
-    return {"message": "CORS preflight handled"}
+
 
 if __name__ == "__main__":
     import uvicorn

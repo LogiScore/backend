@@ -838,3 +838,67 @@ async def get_review_statistics_by_location(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve review statistics: {str(e)}"
         ) 
+
+@router.get("/user/{user_id}/company/{company_id}", response_model=List[ReviewResponse])
+async def get_user_reviews_for_company(
+    user_id: UUID,
+    company_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user_optional)
+):
+    """
+    Get all reviews submitted by a specific user for a specific company.
+    This endpoint allows users to see their own reviews for a company.
+    """
+    try:
+        # Query reviews by user_id and freight_forwarder_id (company_id)
+        reviews = db.query(Review).filter(
+            Review.user_id == user_id,
+            Review.freight_forwarder_id == company_id,
+            Review.is_active == True
+        ).all()
+        
+        if not reviews:
+            return []
+        
+        # Convert to response model
+        review_responses = []
+        for review in reviews:
+            try:
+                # Get city and country from the review
+                city = getattr(review, 'city', None)
+                country = getattr(review, 'country', None)
+                
+                # Count total questions rated for this review
+                total_questions = db.query(ReviewCategoryScore).filter(
+                    ReviewCategoryScore.review_id == review.id
+                ).count()
+                
+                review_response = ReviewResponse(
+                    id=review.id,
+                    freight_forwarder_id=review.freight_forwarder_id,
+                    location_id=review.location_id,
+                    city=city,
+                    country=country,
+                    review_type=review.review_type,
+                    is_anonymous=review.is_anonymous,
+                    review_weight=review.review_weight,
+                    aggregate_rating=review.aggregate_rating,
+                    weighted_rating=review.weighted_rating,
+                    total_questions_rated=total_questions,
+                    created_at=review.created_at
+                )
+                review_responses.append(review_response)
+                
+            except Exception as e:
+                logger.error(f"Error processing review {review.id}: {e}")
+                continue
+        
+        return review_responses
+        
+    except Exception as e:
+        logger.error(f"Error in get_user_reviews_for_company: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve user reviews for company: {str(e)}"
+        ) 

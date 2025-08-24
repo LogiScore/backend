@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, HttpUrl
 from typing import Optional, List
 from database.database import get_db
-from database.models import FreightForwarder, Branch, Review, ReviewCategoryScore
+from database.models import FreightForwarder, Review, ReviewCategoryScore
 from auth.auth import get_current_user
 from database.models import User
 
@@ -430,18 +430,23 @@ async def get_freight_forwarder(
         created_at=freight_forwarder.created_at
     )
 
-@router.get("/{freight_forwarder_id}/branches", response_model=List[BranchResponse])
+@router.get("/branches", response_model=List[dict])
+async def get_branches_by_freight_forwarder_id(
+    freight_forwarder_id: str = Query(..., description="ID of the freight forwarder"),
+    db: Session = Depends(get_db)
+):
+    """Get branches for a specific freight forwarder - returns empty list since branches table is not used"""
+    # Return empty list since branches functionality is not implemented
+    return []
+
+@router.get("/{freight_forwarder_id}/branches", response_model=List[dict])
 async def get_freight_forwarder_branches(
     freight_forwarder_id: str,
     db: Session = Depends(get_db)
 ):
-    """Get branches for a specific freight forwarder"""
-    branches = db.query(Branch).filter(
-        Branch.freight_forwarder_id == freight_forwarder_id,
-        Branch.is_active == True
-    ).all()
-    
-    return [BranchResponse.from_orm(branch) for branch in branches]
+    """Get branches for a specific freight forwarder - returns empty list since branches table is not used"""
+    # Return empty list since branches functionality is not implemented
+    return []
 
 @router.post("/", response_model=FreightForwarderResponse, status_code=status.HTTP_201_CREATED)
 async def create_freight_forwarder(
