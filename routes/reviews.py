@@ -839,6 +839,53 @@ async def get_review_statistics_by_location(
             detail=f"Failed to retrieve review statistics: {str(e)}"
         ) 
 
+@router.get("/check-duplicate/{user_id}/{company_id}/{location_id}")
+async def check_duplicate_review(
+    user_id: UUID,
+    company_id: UUID,
+    location_id: Union[UUID, str],
+    db: Session = Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user_optional)
+):
+    """
+    Check if user has already reviewed the same company and location in the last 6 months.
+    This prevents duplicate reviews for the same service experience.
+    """
+    try:
+        from datetime import datetime, timedelta
+        
+        # Calculate 6 months ago
+        six_months_ago = datetime.utcnow() - timedelta(days=180)
+        
+        # Query for existing review with same user, company, and location within 6 months
+        existing_review = db.query(Review).filter(
+            Review.user_id == user_id,
+            Review.freight_forwarder_id == company_id,
+            Review.location_id == location_id,
+            Review.created_at >= six_months_ago,
+            Review.is_active == True
+        ).first()
+        
+        if existing_review:
+            return {
+                "has_duplicate": True,
+                "existing_review_id": str(existing_review.id),
+                "created_at": existing_review.created_at.isoformat(),
+                "message": "You have already reviewed this company for this location within the last 6 months"
+            }
+        else:
+            return {
+                "has_duplicate": False,
+                "message": "No duplicate review found, you can proceed"
+            }
+        
+    except Exception as e:
+        logger.error(f"Error in check_duplicate_review: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to check for duplicate review: {str(e)}"
+        )
+
 @router.get("/user/{user_id}/company/{company_id}", response_model=List[ReviewResponse])
 async def get_user_reviews_for_company(
     user_id: UUID,
