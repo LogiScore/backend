@@ -36,6 +36,7 @@ class ReviewCreate(BaseModel):
 
 class ReviewResponse(BaseModel):
     id: UUID
+    user_id: Optional[UUID]  # Added user_id field for frontend filtering
     freight_forwarder_id: UUID
     location_id: UUID
     city: Optional[str]
@@ -667,6 +668,7 @@ async def get_reviews(
             
             review_response = ReviewResponse(
                 id=review.id,
+                user_id=review.user_id,  # Added user_id field for frontend filtering
                 freight_forwarder_id=review.freight_forwarder_id,
                 location_id=location_id,
                 city=review.city,
@@ -932,6 +934,7 @@ async def get_user_reviews_for_company(
                 
                 review_response = ReviewResponse(
                     id=review.id,
+                    user_id=review.user_id,  # Added user_id field for frontend filtering
                     freight_forwarder_id=review.freight_forwarder_id,
                     location_id=review.location_id,
                     city=city,
