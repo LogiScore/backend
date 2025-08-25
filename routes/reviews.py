@@ -606,7 +606,7 @@ async def get_reviews(
     """
     try:
         # Build the base query
-        query = db.query(Review).filter(Review.is_active == True)
+        query = db.query(Review)  # Temporarily removed is_active filter to fix critical API issue
         
         # Apply filters
         filters = {}
@@ -698,8 +698,8 @@ async def get_available_countries(db: Session = Depends(get_db)):
         # Get distinct countries from reviews table
         countries = db.query(Review.country).filter(
             Review.country.isnot(None),
-            Review.country != "",
-            Review.is_active == True
+            Review.country != ""
+            # Temporarily removed is_active filter to fix critical API issue
         ).distinct().all()
         
         # Extract country names and filter out None/empty values
@@ -731,8 +731,8 @@ async def get_available_cities(
         # Build the base query
         query = db.query(Review.city, Review.country).filter(
             Review.city.isnot(None),
-            Review.city != "",
-            Review.is_active == True
+            Review.city != ""
+            # Temporarily removed is_active filter to fix critical API issue
         )
         
         # Apply country filter if provided
@@ -775,7 +775,7 @@ async def get_review_statistics_by_location(
     """
     try:
         # Build the base query
-        query = db.query(Review).filter(Review.is_active == True)
+        query = db.query(Review)  # Temporarily removed is_active filter to fix critical API issue
         
         # Apply location filters
         if country:
@@ -862,8 +862,8 @@ async def check_duplicate_review(
             Review.user_id == user_id,
             Review.freight_forwarder_id == company_id,
             Review.location_id == location_id,
-            Review.created_at >= six_months_ago,
-            Review.is_active == True
+            Review.created_at >= six_months_ago
+            # Temporarily removed is_active filter to fix critical API issue
         ).first()
         
         if existing_review:
@@ -901,8 +901,8 @@ async def get_user_reviews_for_company(
         # Query reviews by user_id and freight_forwarder_id (company_id)
         reviews = db.query(Review).filter(
             Review.user_id == user_id,
-            Review.freight_forwarder_id == company_id,
-            Review.is_active == True
+            Review.freight_forwarder_id == company_id
+            # Temporarily removed is_active filter to fix critical API issue
         ).all()
         
         if not reviews:

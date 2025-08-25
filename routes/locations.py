@@ -165,6 +165,99 @@ async def check_route_conflicts():
         "database_status": "connected_with_139284_locations"
     }
 
+@router.get("/countries", response_model=List[str])
+async def get_all_countries(db: Session = Depends(get_db)):
+    """Get all available countries for review forms"""
+    try:
+        result = db.execute(text('SELECT DISTINCT "Country" FROM locations WHERE "Country" IS NOT NULL AND "Country" != \'\' ORDER BY "Country"'))
+        countries = [row[0] for row in result.fetchall()]
+        return countries
+    except Exception as e:
+        logger.error(f"Error getting countries: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve countries")
+
+@router.get("/cities", response_model=List[dict])
+async def get_all_cities(
+    country: Optional[str] = Query(None, description="Filter cities by country"),
+    db: Session = Depends(get_db)
+):
+    """Get all available cities for review forms"""
+    try:
+        if country:
+            result = db.execute(
+                text('SELECT DISTINCT "City", "Country" FROM locations WHERE "City" IS NOT NULL AND "City" != \'\' AND LOWER("Country") = LOWER(:country) ORDER BY "City"'),
+                {"country": country}
+            )
+        else:
+            result = db.execute(
+                text('SELECT DISTINCT "City", "Country" FROM locations WHERE "City" IS NOT NULL AND "City" != \'\' ORDER BY "City"')
+            )
+        
+        cities = [{"city": row[0], "country": row[1]} for row in result.fetchall()]
+        return cities
+    except Exception as e:
+        logger.error(f"Error getting cities: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve cities")
+
+@router.get("/for-reviews", response_model=List[dict])
+async def get_locations_for_reviews(
+    country: Optional[str] = Query(None, description="Filter by country"),
+    city: Optional[str] = Query(None, description="Filter by city"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get locations for review forms - no search query required.
+    This endpoint is specifically for populating location dropdowns in review forms.
+    """
+    try:
+        # Build the base query
+        base_query = """
+        SELECT "UUID", "Location", "City", "State", "Country", "Region"
+        FROM locations
+        WHERE 1=1
+        """
+        
+        params = {}
+        
+        # Add country filter
+        if country and country.strip():
+            base_query += " AND LOWER(\"Country\") LIKE LOWER(:country)"
+            params['country'] = f"%{country.strip()}%"
+        
+        # Add city filter
+        if city and city.strip():
+            base_query += " AND LOWER(\"City\") LIKE LOWER(:city)"
+            params['city'] = f"%{city.strip()}%"
+        
+        # Add ordering and limit
+        base_query += " ORDER BY \"City\", \"Country\" LIMIT 1000"
+        
+        # Execute query
+        result = db.execute(text(base_query), params)
+        rows = result.fetchall()
+        
+        # Convert to response format
+        locations = []
+        for row in rows:
+            locations.append({
+                "id": str(row[0]),  # UUID
+                "uuid": str(row[0]),  # UUID
+                "name": row[1] if row[1] else f"{row[2]}, {row[3]}, {row[4]}".strip(', '),  # Location or City, State, Country
+                "city": row[2] if row[2] else "",  # City
+                "state": row[3] if row[3] else "",  # State
+                "country": row[4] if row[4] else "",  # Country
+                "region": row[5] if row[5] else ""  # Region
+            })
+        
+        return locations
+        
+    except Exception as e:
+        logger.error(f"Error in get_locations_for_reviews: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve locations: {str(e)}"
+        )
+
 @router.get("/")
 async def get_locations(
     q: Optional[str] = Query(None, min_length=4, description="Search query for filtering locations (minimum 4 characters)"),
