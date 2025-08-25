@@ -233,7 +233,7 @@ async def create_review(
                             question_id=question.question,
                             question_text=question_detail.question_text,
                             rating=question.rating,
-                            rating_definition=question_detail.rating_definitions.get(str(question.rating), ""),
+                            rating_definition=question_detail.rating_definitions.get(str(question.rating), "") if question_detail.rating_definitions else "",
                             weight=review_data.review_weight,
                             category=category.category,  # Set the category field
                             score=0.0  # Set a default score
@@ -290,6 +290,7 @@ async def create_review(
             
             response = ReviewResponse(
                 id=review.id,
+                user_id=review.user_id,
                 freight_forwarder_id=review.freight_forwarder_id,
                 location_id=location_uuid,
                 city=city,
@@ -317,6 +318,9 @@ async def create_review(
         # Re-raise HTTP exceptions
         raise
     except Exception as e:
+        logger.error(f"Unexpected error in create_review: {e}")
+        logger.error(f"Error type: {type(e)}")
+        logger.error(f"Error details: {str(e)}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -869,10 +873,11 @@ async def check_duplicate_review(
         six_months_ago = datetime.utcnow() - timedelta(days=180)
         
         # Query for existing review with same user, company, and location within 6 months
+        # Since location_id is not stored in reviews table, we need to extract city/country from the location_id parameter
+        # For now, we'll check by user, company, and time period only
         existing_review = db.query(Review).filter(
             Review.user_id == user_id,
             Review.freight_forwarder_id == company_id,
-            Review.location_id == location_id,
             Review.created_at >= six_months_ago
             # Temporarily removed is_active filter to fix critical API issue
         ).first()
@@ -936,7 +941,7 @@ async def get_user_reviews_for_company(
                     id=review.id,
                     user_id=review.user_id,  # Added user_id field for frontend filtering
                     freight_forwarder_id=review.freight_forwarder_id,
-                    location_id=review.location_id,
+                    location_id=review.branch_id if review.branch_id else uuid.uuid4(),
                     city=city,
                     country=country,
                     review_type=review.review_type,
