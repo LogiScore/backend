@@ -608,6 +608,9 @@ async def get_reviews(
         # Build the base query
         query = db.query(Review)  # Temporarily removed is_active filter to fix critical API issue
         
+        # DEBUG: Log the initial query
+        logger.info(f"Initial query built for reviews endpoint")
+        
         # Apply filters
         filters = {}
         
@@ -624,9 +627,11 @@ async def get_reviews(
         if freight_forwarder_id:
             query = query.filter(Review.freight_forwarder_id == freight_forwarder_id)
             filters["freight_forwarder_id"] = str(freight_forwarder_id)
+            logger.info(f"Applied freight_forwarder_id filter: {freight_forwarder_id}")
         
         if search:
             # Search in review content through category scores
+            logger.info(f"Search parameter detected: '{search}' - applying complex join query")
             from sqlalchemy import or_
             query = query.join(ReviewCategoryScore).filter(
                 or_(
@@ -636,9 +641,12 @@ async def get_reviews(
                 )
             ).distinct()
             filters["search"] = search
+        else:
+            logger.info("No search parameter - using simple query")
         
         # Get total count before pagination
         total_count = query.count()
+        logger.info(f"Total reviews found before pagination: {total_count}")
         
         # Apply pagination
         offset = (page - 1) * page_size
@@ -646,6 +654,7 @@ async def get_reviews(
         
         # Execute query
         reviews = query.all()
+        logger.info(f"Reviews returned after pagination: {len(reviews)}")
         
         # Calculate total pages
         total_pages = (total_count + page_size - 1) // page_size
