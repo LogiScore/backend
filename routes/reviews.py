@@ -170,6 +170,8 @@ async def create_review(
         # Create the main review record
         try:
             logger.info(f"Creating review with data: freight_forwarder_id={review_data.freight_forwarder_id}, city={city}, country={country}")
+            logger.info(f"Current user: {current_user}")
+            logger.info(f"User ID: {current_user.get('id') if current_user else None}")
             
             # Since we're using locations instead of branches, we need to work around database constraints
             # Create a dummy UUID for branch_id to satisfy any NOT NULL constraints
@@ -177,6 +179,9 @@ async def create_review(
             import uuid
             dummy_branch_id = uuid.uuid4()  # Generate a random UUID for branch_id
             logger.info(f"Using city={city}, country={country} from location, dummy branch_id={dummy_branch_id}")
+            
+            total_questions = sum(len(cat.questions) for cat in review_data.category_ratings)
+            logger.info(f"Total questions to rate: {total_questions}")
             
             review = Review(
                 freight_forwarder_id=review_data.freight_forwarder_id,
@@ -189,12 +194,13 @@ async def create_review(
                 review_weight=review_data.review_weight,
                 aggregate_rating=review_data.aggregate_rating,
                 weighted_rating=review_data.weighted_rating,
-                total_questions_rated=sum(len(cat.questions) for cat in review_data.category_ratings),
+                total_questions_rated=total_questions,
                 is_active=True,
                 is_verified=False
             )
             
             logger.info(f"Review object created successfully: {review}")
+            logger.info(f"Review attributes: id={review.id}, user_id={review.user_id}, freight_forwarder_id={review.freight_forwarder_id}")
             
         except Exception as e:
             logger.error(f"Error creating Review object: {e}")
@@ -218,14 +224,33 @@ async def create_review(
         
         # Create category scores for each question
         try:
+            logger.info(f"Starting to create category scores for {len(review_data.category_ratings)} categories")
+            
             for category in review_data.category_ratings:
+                logger.info(f"Processing category: {category.category} with {len(category.questions)} questions")
+                
                 for question in category.questions:
+                    logger.info(f"Processing question: {question.question} with rating: {question.rating}")
+                    
                     # Get question details from review_questions table
                     question_detail = db.query(ReviewQuestion).filter(
                         ReviewQuestion.question_id == question.question
                     ).first()
                     
+                    logger.info(f"Question detail found: {question_detail is not None}")
+                    
                     if question_detail:
+                        logger.info(f"Question detail: category_name={question_detail.category_name}, question_text={question_detail.question_text}")
+                        logger.info(f"Rating definitions type: {type(question_detail.rating_definitions)}")
+                        logger.info(f"Rating definitions: {question_detail.rating_definitions}")
+                        
+                        try:
+                            rating_def = question_detail.rating_definitions.get(str(question.rating), "") if question_detail.rating_definitions else ""
+                            logger.info(f"Extracted rating definition: {rating_def}")
+                        except Exception as e:
+                            logger.error(f"Error extracting rating definition: {e}")
+                            rating_def = ""
+                        
                         category_score = ReviewCategoryScore(
                             review_id=review.id,
                             category_id=category.category,
@@ -233,13 +258,15 @@ async def create_review(
                             question_id=question.question,
                             question_text=question_detail.question_text,
                             rating=question.rating,
-                            rating_definition=question_detail.rating_definitions.get(str(question.rating), "") if question_detail.rating_definitions else "",
+                            rating_definition=rating_def,
                             weight=review_data.review_weight,
                             category=category.category,  # Set the category field
                             score=0.0  # Set a default score
                         )
                         db.add(category_score)
+                        logger.info(f"Category score object created for question {question.question}")
                     else:
+                        logger.warning(f"Question detail not found for question_id: {question.question}")
                         # If question not found, create with basic info
                         category_score = ReviewCategoryScore(
                             review_id=review.id,
@@ -254,6 +281,7 @@ async def create_review(
                             score=0.0  # Set a default score
                         )
                         db.add(category_score)
+                        logger.info(f"Fallback category score object created for question {question.question}")
             
             logger.info(f"Category scores created successfully for review {review.id} with category and score fields set")
             
