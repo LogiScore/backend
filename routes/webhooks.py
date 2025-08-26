@@ -53,6 +53,10 @@ async def stripe_webhook(request: Request):
             await handle_subscription_created(event)
         elif event['type'] == 'invoice.payment_action_required':
             await handle_payment_action_required(event)
+        elif event['type'] == 'review.created':
+            await handle_review_created(event)
+        elif event['type'] == 'review.updated':
+            await handle_review_updated(event)
         
         logger.info(f"Successfully processed webhook: {event['type']}")
         return {"status": "success", "event_type": event['type']}
@@ -189,6 +193,41 @@ async def handle_payment_action_required(event: Dict[str, Any]):
             logger.info(f"Payment action required for subscription: {subscription_id}")
     except Exception as e:
         logger.error(f"Error handling payment action required: {str(e)}")
+
+async def handle_review_created(event: Dict[str, Any]):
+    """Handle new review creation"""
+    try:
+        review_data = event['data']['object']
+        review_id = review_data.get('id')
+        
+        if review_id:
+            db = next(get_db())
+            from services.notification_service import notification_service
+            
+            # Process the new review for notifications
+            await notification_service.process_new_review(review_id, db)
+            
+            logger.info(f"Processed new review webhook: {review_id}")
+    except Exception as e:
+        logger.error(f"Error handling review created: {str(e)}")
+
+async def handle_review_updated(event: Dict[str, Any]):
+    """Handle review updates"""
+    try:
+        review_data = event['data']['object']
+        review_id = review_data.get('id')
+        
+        if review_id:
+            db = next(get_db())
+            from services.notification_service import notification_service
+            
+            # Process the updated review for notifications (if needed)
+            # This could trigger notifications for users subscribed to review updates
+            await notification_service.process_new_review(review_id, db)
+            
+            logger.info(f"Processed review update webhook: {review_id}")
+    except Exception as e:
+        logger.error(f"Error handling review updated: {str(e)}")
 
 @router.get("/stripe/webhook/test")
 async def test_webhook_endpoint():

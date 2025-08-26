@@ -44,6 +44,8 @@ class User(Base):
     reviews = relationship("Review", back_populates="user")
     sessions = relationship("UserSession", back_populates="user")
     reported_disputes = relationship("Dispute", foreign_keys="Dispute.reported_by", back_populates="reporter")
+    review_subscriptions = relationship("ReviewSubscription", back_populates="user")
+    review_notifications = relationship("ReviewNotification", back_populates="user")
 
 class FreightForwarder(Base):
     __tablename__ = "freight_forwarders"
@@ -61,6 +63,7 @@ class FreightForwarder(Base):
     # Relationships
     branches = relationship("Branch", back_populates="freight_forwarder")
     reviews = relationship("Review", back_populates="freight_forwarder")
+    review_subscriptions = relationship("ReviewSubscription", back_populates="freight_forwarder")
     
     @hybrid_property
     def average_rating(self):
@@ -153,6 +156,7 @@ class Review(Base):
     freight_forwarder = relationship("FreightForwarder", back_populates="reviews")
     category_scores = relationship("ReviewCategoryScore", back_populates="review")
     disputes = relationship("Dispute", back_populates="review")
+    notifications = relationship("ReviewNotification", back_populates="review")
 
 class ReviewCategoryScore(Base):
     __tablename__ = "review_category_scores"
@@ -233,3 +237,39 @@ class AdCampaign(Base):
     status = Column(String(50), default='active')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now()) 
+
+class ReviewSubscription(Base):
+    __tablename__ = "review_subscriptions"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    freight_forwarder_id = Column(UUID(as_uuid=True), ForeignKey("freight_forwarders.id"), nullable=True)
+    location_country = Column(String(100), nullable=True)  # For country-based notifications
+    location_city = Column(String(100), nullable=True)  # For city-based notifications
+    review_type = Column(String(50), nullable=True)  # general, import, export, domestic, warehousing
+    notification_frequency = Column(String(20), default='immediate')  # immediate, daily, weekly
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    user = relationship("User", back_populates="review_subscriptions")
+    freight_forwarder = relationship("FreightForwarder", back_populates="review_subscriptions")
+    notifications = relationship("ReviewNotification", back_populates="subscription")
+
+class ReviewNotification(Base):
+    __tablename__ = "review_notifications"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    review_id = Column(UUID(as_uuid=True), ForeignKey("reviews.id"), nullable=False)
+    subscription_id = Column(UUID(as_uuid=True), ForeignKey("review_subscriptions.id"), nullable=False)
+    notification_type = Column(String(50), default='new_review')  # new_review, review_update, etc.
+    is_sent = Column(Boolean, default=False)
+    sent_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    user = relationship("User", back_populates="review_notifications")
+    review = relationship("Review", back_populates="notifications")
+    subscription = relationship("ReviewSubscription", back_populates="notifications") 

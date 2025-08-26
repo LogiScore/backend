@@ -771,5 +771,325 @@ class EmailService:
             logger.info(f"FALLBACK: Contact form acknowledgment would be sent to {contact_data.get('email')}")
             return True  # Return True for fallback mode
 
+    async def send_review_notification(self, user_email: str, user_name: str, review_data: dict) -> bool:
+        """Send notification email for new reviews matching user subscriptions"""
+        try:
+            if not self.api_key:
+                # Fallback: log the notification to console for development
+                logger.info(f"FALLBACK: Review notification for {user_email}: {review_data}")
+                return True
+            
+            # Create email message
+            subject = f"New Review Alert - {review_data.get('freight_forwarder_name', 'Freight Forwarder')}"
+            
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>New Review Alert - LogiScore</title>
+                <style>
+                    body {{
+                        font-family: Arial, sans-serif;
+                        line-height: 1.6;
+                        color: #333;
+                        max-width: 600px;
+                        margin: 0 auto;
+                        padding: 20px;
+                    }}
+                    .header {{
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                        padding: 30px;
+                        text-align: center;
+                        border-radius: 10px 10px 0 0;
+                    }}
+                    .content {{
+                        background: #f8f9fa;
+                        padding: 30px;
+                        border-radius: 0 0 10px 10px;
+                    }}
+                    .review-card {{
+                        background: white;
+                        border: 1px solid #dee2e6;
+                        border-radius: 8px;
+                        padding: 20px;
+                        margin: 20px 0;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    }}
+                    .rating {{
+                        color: #ffc107;
+                        font-size: 18px;
+                        margin: 10px 0;
+                    }}
+                    .location {{
+                        background: #e9ecef;
+                        padding: 10px;
+                        border-radius: 5px;
+                        margin: 10px 0;
+                        font-size: 14px;
+                    }}
+                    .cta-button {{
+                        display: inline-block;
+                        background: #007bff;
+                        color: white;
+                        padding: 15px 30px;
+                        text-decoration: none;
+                        border-radius: 5px;
+                        font-weight: bold;
+                        margin: 20px 0;
+                    }}
+                    .footer {{
+                        text-align: center;
+                        margin-top: 30px;
+                        padding-top: 20px;
+                        border-top: 1px solid #dee2e6;
+                        color: #6c757d;
+                        font-size: 14px;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>🔔 New Review Alert</h1>
+                    <p>A new review has been posted that matches your subscription criteria</p>
+                </div>
+                
+                <div class="content">
+                    <h2>Hello {user_name}!</h2>
+                    
+                    <p>We've found a new review that matches your subscription preferences:</p>
+                    
+                    <div class="review-card">
+                        <h3>{review_data.get('freight_forwarder_name', 'Freight Forwarder')}</h3>
+                        
+                        <div class="rating">
+                            {'⭐' * int(review_data.get('aggregate_rating', 0))} 
+                            {review_data.get('aggregate_rating', 'N/A')}/4.0
+                        </div>
+                        
+                        <div class="location">
+                            <strong>Location:</strong> {review_data.get('city', 'N/A')}, {review_data.get('country', 'N/A')}
+                        </div>
+                        
+                        <div class="location">
+                            <strong>Review Type:</strong> {review_data.get('review_type', 'General').title()}
+                        </div>
+                        
+                        <p><strong>Posted:</strong> {review_data.get('created_at', 'N/A')}</p>
+                    </div>
+                    
+                    <a href="https://logiscore.net/reviews/{review_data.get('review_id')}" class="cta-button">View Full Review</a>
+                    
+                    <p>This notification was sent because you're subscribed to reviews matching your criteria. You can manage your subscription preferences in your LogiScore account.</p>
+                    
+                    <p>Best regards,<br>The LogiScore Team</p>
+                </div>
+                
+                <div class="footer">
+                    <p>You're receiving this email because you have an active review subscription on LogiScore.</p>
+                    <p><a href="https://logiscore.net/account/subscriptions">Manage Subscriptions</a> | <a href="https://logiscore.net/account/unsubscribe">Unsubscribe</a></p>
+                    <p>&copy; 2025 LogiScore. All rights reserved.</p>
+                </div>
+            </body>
+            </html>
+            """
+            
+            # Create SendGrid message
+            message = Mail(
+                from_email=Email(self.from_email, self.from_name),
+                to_emails=To(user_email),
+                subject=subject,
+                html_content=HtmlContent(html_content)
+            )
+            
+            # Send email
+            sg = SendGridAPIClient(self.api_key)
+            
+            # Set EU data residency if needed
+            if os.getenv('SENDGRID_EU_RESIDENCY', 'false').lower() == 'true':
+                sg.set_sendgrid_data_residency("eu")
+            
+            response = sg.send(message)
+            
+            if response.status_code == 202:
+                logger.info(f"Review notification sent successfully to {user_email}")
+                return True
+            else:
+                logger.error(f"Failed to send review notification. Status code: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error sending review notification to {user_email}: {str(e)}")
+            logger.info(f"FALLBACK: Review notification would be sent to {user_email}")
+            return True  # Return True for fallback mode
+
+    async def send_subscription_summary(self, user_email: str, user_name: str, summary_data: dict) -> bool:
+        """Send daily/weekly subscription summary email"""
+        try:
+            if not self.api_key:
+                # Fallback: log the summary to console for development
+                logger.info(f"FALLBACK: Subscription summary for {user_email}: {summary_data}")
+                return True
+            
+            # Create email message
+            frequency = summary_data.get('frequency', 'daily')
+            subject = f"Your {frequency.title()} Review Summary - LogiScore"
+            
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>{frequency.title()} Review Summary - LogiScore</title>
+                <style>
+                    body {{
+                        font-family: Arial, sans-serif;
+                        line-height: 1.6;
+                        color: #333;
+                        max-width: 600px;
+                        margin: 0 auto;
+                        padding: 20px;
+                    }}
+                    .header {{
+                        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+                        color: white;
+                        padding: 30px;
+                        text-align: center;
+                        border-radius: 10px 10px 0 0;
+                    }}
+                    .content {{
+                        background: #f8f9fa;
+                        padding: 30px;
+                        border-radius: 0 0 10px 10px;
+                    }}
+                    .summary-stats {{
+                        background: white;
+                        border: 1px solid #dee2e6;
+                        border-radius: 8px;
+                        padding: 20px;
+                        margin: 20px 0;
+                        text-align: center;
+                    }}
+                    .stat-number {{
+                        font-size: 32px;
+                        font-weight: bold;
+                        color: #007bff;
+                    }}
+                    .review-item {{
+                        background: white;
+                        border: 1px solid #dee2e6;
+                        border-radius: 8px;
+                        padding: 15px;
+                        margin: 10px 0;
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                    }}
+                    .cta-button {{
+                        display: inline-block;
+                        background: #007bff;
+                        color: white;
+                        padding: 15px 30px;
+                        text-decoration: none;
+                        border-radius: 5px;
+                        font-weight: bold;
+                        margin: 20px 0;
+                    }}
+                    .footer {{
+                        text-align: center;
+                        margin-top: 30px;
+                        padding-top: 20px;
+                        border-top: 1px solid #dee2e6;
+                        color: #6c757d;
+                        font-size: 14px;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>📊 Your {frequency.title()} Review Summary</h1>
+                    <p>Here's what's new in your subscribed categories</p>
+                </div>
+                
+                <div class="content">
+                    <h2>Hello {user_name}!</h2>
+                    
+                    <div class="summary-stats">
+                        <div class="stat-number">{summary_data.get('total_reviews', 0)}</div>
+                        <p>New reviews in the past {frequency}</p>
+                    </div>
+                    
+                    <h3>Recent Reviews:</h3>
+                    
+                    {self._generate_review_summary_html(summary_data.get('reviews', []))}
+                    
+                    <a href="https://logiscore.net/reviews" class="cta-button">View All Reviews</a>
+                    
+                    <p>You can manage your subscription preferences and notification frequency in your LogiScore account.</p>
+                    
+                    <p>Best regards,<br>The LogiScore Team</p>
+                </div>
+                
+                <div class="footer">
+                    <p>You're receiving this email because you have an active review subscription on LogiScore.</p>
+                    <p><a href="https://logiscore.net/account/subscriptions">Manage Subscriptions</a> | <a href="https://logiscore.net/account/unsubscribe">Unsubscribe</a></p>
+                    <p>&copy; 2025 LogiScore. All rights reserved.</p>
+                </div>
+            </body>
+            </html>
+            """
+            
+            # Create SendGrid message
+            message = Mail(
+                from_email=Email(self.from_email, self.from_name),
+                to_emails=To(user_email),
+                subject=subject,
+                html_content=HtmlContent(html_content)
+            )
+            
+            # Send email
+            sg = SendGridAPIClient(self.api_key)
+            
+            # Set EU data residency if needed
+            if os.getenv('SENDGRID_EU_RESIDENCY', 'false').lower() == 'true':
+                sg.set_sendgrid_data_residency("eu")
+            
+            response = sg.send(message)
+            
+            if response.status_code == 202:
+                logger.info(f"Subscription summary sent successfully to {user_email}")
+                return True
+            else:
+                logger.error(f"Failed to send subscription summary. Status code: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error sending subscription summary to {user_email}: {str(e)}")
+            logger.info(f"FALLBACK: Subscription summary would be sent to {user_email}")
+            return True  # Return True for fallback mode
+
+    def _generate_review_summary_html(self, reviews: list) -> str:
+        """Generate HTML for review summary items"""
+        if not reviews:
+            return '<p>No new reviews in this period.</p>'
+        
+        html_parts = []
+        for review in reviews[:5]:  # Limit to 5 reviews
+            html_parts.append(f"""
+                <div class="review-item">
+                    <h4>{review.get('freight_forwarder_name', 'Freight Forwarder')}</h4>
+                    <p><strong>Rating:</strong> {'⭐' * int(review.get('aggregate_rating', 0))} {review.get('aggregate_rating', 'N/A')}/4.0</p>
+                    <p><strong>Location:</strong> {review.get('city', 'N/A')}, {review.get('country', 'N/A')}</p>
+                    <p><strong>Type:</strong> {review.get('review_type', 'General').title()}</p>
+                    <p><strong>Posted:</strong> {review.get('created_at', 'N/A')}</p>
+                </div>
+            """)
+        
+        if len(reviews) > 5:
+            html_parts.append(f'<p><em>... and {len(reviews) - 5} more reviews</em></p>')
+        
+        return ''.join(html_parts)
+
 # Create singleton instance
 email_service = EmailService()

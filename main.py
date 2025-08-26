@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from database.database import get_db, get_engine
 from database.models import Base
 from auth.auth import get_current_user, create_access_token
-from routes import users, freight_forwarders, reviews, search, subscriptions, auth, locations, email, admin
+from routes import users, freight_forwarders, reviews, search, subscriptions, auth, locations, email, admin, review_subscriptions
 
 # Load environment variables
 load_dotenv()
@@ -87,6 +87,7 @@ app.include_router(freight_forwarders.router, prefix="/api/freight-forwarders", 
 app.include_router(reviews.router, prefix="/api/reviews", tags=["reviews"])
 app.include_router(search.router, prefix="/api/search", tags=["search"])
 app.include_router(subscriptions.router, prefix="/api/subscriptions", tags=["subscriptions"])
+app.include_router(review_subscriptions.router, prefix="/api/review-subscriptions", tags=["review-subscriptions"])
 app.include_router(locations.router, prefix="/api/locations", tags=["locations"])  # Locations API for frontend integration
 app.include_router(email.router, prefix="/api/email", tags=["email"])  # Email API for sending emails
 app.include_router(admin.router, prefix="/admin", tags=["admin"])  # Admin API for 8x7k9m2p dashboard
