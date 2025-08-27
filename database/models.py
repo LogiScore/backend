@@ -145,6 +145,7 @@ class Review(Base):
     aggregate_rating = Column(Numeric(3,2), nullable=True)  # Added: calculated from all question ratings
     weighted_rating = Column(Numeric(3,2), nullable=True)  # Added: aggregate_rating * review_weight
     total_questions_rated = Column(Integer, default=0)  # Added: count of questions with ratings > 0
+    shipment_reference = Column(String(255), nullable=True)  # Added: shipment reference for tracking
     # Keep existing fields for backward compatibility
     is_verified = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)

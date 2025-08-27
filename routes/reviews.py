@@ -33,6 +33,7 @@ class ReviewCreate(BaseModel):
     category_ratings: List[CategoryRating]
     aggregate_rating: float
     weighted_rating: float
+    shipment_reference: Optional[str] = None  # Added: shipment reference for tracking
 
 class ReviewResponse(BaseModel):
     id: UUID
@@ -47,6 +48,7 @@ class ReviewResponse(BaseModel):
     aggregate_rating: float
     weighted_rating: float
     total_questions_rated: int
+    shipment_reference: Optional[str]  # Added: shipment reference for tracking
     created_at: datetime
 
     class Config:
@@ -195,6 +197,7 @@ async def create_review(
                 aggregate_rating=review_data.aggregate_rating,
                 weighted_rating=review_data.weighted_rating,
                 total_questions_rated=total_questions,
+                shipment_reference=review_data.shipment_reference,  # Added: shipment reference
                 is_active=True,
                 is_verified=False
             )
