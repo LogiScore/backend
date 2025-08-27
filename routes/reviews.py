@@ -14,7 +14,7 @@ router = APIRouter(tags=["reviews"])
 logger = logging.getLogger(__name__)
 
 # Pydantic models for request/response
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 class QuestionRating(BaseModel):
     question: str
@@ -48,11 +48,19 @@ class ReviewResponse(BaseModel):
     aggregate_rating: float
     weighted_rating: float
     total_questions_rated: int
-    shipment_reference: Optional[str]  # Added: shipment reference for tracking
+    shipment_reference: Optional[str] = None  # Added: shipment reference for tracking
     created_at: datetime
 
     class Config:
         from_attributes = True
+        
+    @field_validator('shipment_reference', mode='before')
+    @classmethod
+    def validate_shipment_reference(cls, v):
+        """Ensure shipment_reference is always a string or None"""
+        if v is None or v == '':
+            return None
+        return str(v)
 
 class ReviewsListResponse(BaseModel):
     reviews: List[ReviewResponse]
@@ -204,6 +212,8 @@ async def create_review(
             
             logger.info(f"Review object created successfully: {review}")
             logger.info(f"Review attributes: id={review.id}, user_id={review.user_id}, freight_forwarder_id={review.freight_forwarder_id}")
+            logger.info(f"shipment_reference: {review_data.shipment_reference}")
+            logger.info(f"Review shipment_reference field: {getattr(review, 'shipment_reference', 'FIELD_NOT_FOUND')}")
             
         except Exception as e:
             logger.error(f"Error creating Review object: {e}")
