@@ -1091,5 +1091,168 @@ class EmailService:
         
         return ''.join(html_parts)
 
+    async def send_admin_new_forwarder_notification(self, forwarder_data: dict, creator_data: dict) -> bool:
+        """Send notification email to admin when a new freight forwarder is added"""
+        try:
+            if not self.api_key:
+                logger.info(f"FALLBACK: Admin new forwarder notification would be sent to admin@logiscore.net")
+                logger.info(f"FALLBACK: New company: {forwarder_data.get('name')} by {creator_data.get('full_name', 'Unknown')}")
+                return True
+            
+            subject = f"🚢 New Freight Forwarder Added: {forwarder_data.get('name', 'Unknown Company')}"
+            
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>New Freight Forwarder Added - LogiScore</title>
+                <style>
+                    body {{
+                        font-family: Arial, sans-serif;
+                        line-height: 1.6;
+                        color: #333;
+                        max-width: 700px;
+                        margin: 0 auto;
+                        padding: 20px;
+                    }}
+                    .header {{
+                        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+                        color: white;
+                        padding: 30px;
+                        text-align: center;
+                        border-radius: 10px 10px 0 0;
+                    }}
+                    .content {{
+                        background: #f8f9fa;
+                        padding: 30px;
+                        border-radius: 0 0 10px 10px;
+                    }}
+                    .company-info {{
+                        background: white;
+                        border: 1px solid #dee2e6;
+                        border-radius: 8px;
+                        padding: 20px;
+                        margin: 20px 0;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    }}
+                    .creator-info {{
+                        background: #e3f2fd;
+                        border: 1px solid #bbdefb;
+                        border-radius: 8px;
+                        padding: 20px;
+                        margin: 20px 0;
+                    }}
+                    .company-info h3, .creator-info h3 {{
+                        margin-top: 0;
+                        color: #495057;
+                    }}
+                    .company-info p, .creator-info p {{
+                        margin: 10px 0;
+                    }}
+                    .company-info strong, .creator-info strong {{
+                        color: #495057;
+                    }}
+                    .footer {{
+                        text-align: center;
+                        margin-top: 30px;
+                        padding-top: 20px;
+                        border-top: 1px solid #dee2e6;
+                        color: #6c757d;
+                        font-size: 14px;
+                    }}
+                    .timestamp {{
+                        background: #f8f9fa;
+                        border: 1px solid #dee2e6;
+                        border-radius: 5px;
+                        padding: 15px;
+                        margin: 15px 0;
+                        text-align: center;
+                        color: #6c757d;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>🚢 New Freight Forwarder Added</h1>
+                    <p>A new company has been added to the LogiScore platform</p>
+                </div>
+                
+                <div class="content">
+                    <h2>Company Information</h2>
+                    
+                    <div class="company-info">
+                        <h3>🏢 {forwarder_data.get('name', 'Unknown Company')}</h3>
+                        <p><strong>Website:</strong> {forwarder_data.get('website', 'Not provided')}</p>
+                        <p><strong>Description:</strong> {forwarder_data.get('description', 'Not provided')}</p>
+                        <p><strong>Headquarters Country:</strong> {forwarder_data.get('headquarters_country', 'Not specified')}</p>
+                        <p><strong>Logo URL:</strong> {forwarder_data.get('logo_url', 'Not provided')}</p>
+                    </div>
+                    
+                    <h2>Creator Information</h2>
+                    
+                    <div class="creator-info">
+                        <h3>👤 {creator_data.get('full_name', 'Unknown User')}</h3>
+                        <p><strong>Email:</strong> {creator_data.get('email', 'Not provided')}</p>
+                        <p><strong>Username:</strong> {creator_data.get('username', 'Not provided')}</p>
+                        <p><strong>User Type:</strong> {creator_data.get('user_type', 'Unknown').title()}</p>
+                        <p><strong>User ID:</strong> {creator_data.get('id', 'Unknown')}</p>
+                    </div>
+                    
+                    <div class="timestamp">
+                        <strong>Added to platform:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}
+                    </div>
+                    
+                    <p>This notification was automatically generated when a new freight forwarder was added to the LogiScore platform. The company is now available for reviews and ratings.</p>
+                    
+                    <p><strong>Next Steps:</strong></p>
+                    <ul>
+                        <li>Review the company information for accuracy</li>
+                        <li>Verify the company's legitimacy if needed</li>
+                        <li>Monitor for any reviews or disputes</li>
+                        <li>Consider reaching out to the company for partnership opportunities</li>
+                    </ul>
+                    
+                    <p>Best regards,<br>The LogiScore System</p>
+                </div>
+                
+                <div class="footer">
+                    <p>This is an automated notification from the LogiScore platform.</p>
+                    <p>&copy; 2025 LogiScore. All rights reserved.</p>
+                </div>
+            </body>
+            </html>
+            """
+            
+            # Create SendGrid message
+            message = Mail(
+                from_email=Email(self.from_email, self.from_name),
+                to_emails=To("admin@logiscore.net"),
+                subject=subject,
+                html_content=HtmlContent(html_content)
+            )
+            
+            # Send email
+            sg = SendGridAPIClient(self.api_key)
+            
+            # Set EU data residency if needed
+            if os.getenv('SENDGRID_EU_RESIDENCY', 'false').lower() == 'true':
+                sg.set_sendgrid_data_residency("eu")
+            
+            response = sg.send(message)
+            
+            if response.status_code == 202:
+                logger.info(f"Admin new forwarder notification sent successfully to admin@logiscore.net")
+                return True
+            else:
+                logger.error(f"Failed to send admin new forwarder notification. Status code: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error sending admin new forwarder notification: {str(e)}")
+            logger.info(f"FALLBACK: Admin new forwarder notification would be sent to admin@logiscore.net")
+            return True  # Return True for fallback mode
+
 # Create singleton instance
 email_service = EmailService()

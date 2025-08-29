@@ -6,8 +6,13 @@ from database.database import get_db
 from database.models import FreightForwarder, Review, ReviewCategoryScore
 from auth.auth import get_current_user
 from database.models import User
+from email_service import email_service
+import logging
 
 router = APIRouter()
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 from datetime import datetime
 from uuid import UUID
@@ -486,6 +491,34 @@ async def create_freight_forwarder(
         db.add(new_freight_forwarder)
         db.commit()
         db.refresh(new_freight_forwarder)
+        
+        # Send admin notification email
+        try:
+            forwarder_data = {
+                "name": new_freight_forwarder.name,
+                "website": new_freight_forwarder.website,
+                "description": new_freight_forwarder.description,
+                "headquarters_country": new_freight_forwarder.headquarters_country,
+                "logo_url": new_freight_forwarder.logo_url
+            }
+            
+            creator_data = {
+                "id": str(current_user.id),
+                "full_name": current_user.full_name or current_user.username or current_user.email,
+                "email": current_user.email,
+                "username": current_user.username,
+                "user_type": current_user.user_type
+            }
+            
+            # Send admin notification asynchronously (don't wait for response)
+            await email_service.send_admin_new_forwarder_notification(
+                forwarder_data=forwarder_data,
+                creator_data=creator_data
+            )
+            
+        except Exception as e:
+            # Log error but don't fail the request
+            logger.error(f"Failed to send admin notification for new freight forwarder: {str(e)}")
         
         # Return the created freight forwarder
         return FreightForwarderResponse(

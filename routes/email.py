@@ -8,6 +8,7 @@ import logging
 from pydantic import BaseModel, EmailStr, validator
 import re
 import uuid
+from auth.auth import get_current_user
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -225,4 +226,77 @@ async def send_review_thank_you_email(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error while sending thank you email"
+        )
+
+class AdminNewForwarderRequest(BaseModel):
+    forwarder_data: dict
+    creator_data: dict
+
+@router.post("/admin-new-forwarder")
+async def send_admin_new_forwarder_notification(
+    request: AdminNewForwarderRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Send notification email to admin when a new freight forwarder is added
+    
+    Expected request format:
+    {
+        "forwarder_data": {
+            "name": "Company Name",
+            "website": "https://example.com",
+            "description": "Company description",
+            "headquarters_country": "Country",
+            "logo_url": "https://example.com/logo.png"
+        },
+        "creator_data": {
+            "id": "user_id",
+            "full_name": "User Full Name",
+            "email": "user@example.com",
+            "username": "username",
+            "user_type": "shipper"
+        }
+    }
+    """
+    try:
+        # Check if user has permission to send admin notifications
+        if current_user.user_type not in ["admin", "shipper"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions to send admin notifications"
+            )
+        
+        logger.info(f"Admin new forwarder notification requested by {current_user.email}")
+        logger.info(f"Company: {request.forwarder_data.get('name')}")
+        logger.info(f"Creator: {request.creator_data.get('full_name')}")
+        
+        # Send admin notification email
+        email_sent = await email_service.send_admin_new_forwarder_notification(
+            forwarder_data=request.forwarder_data,
+            creator_data=request.creator_data
+        )
+        
+        if email_sent:
+            logger.info(f"Admin new forwarder notification sent successfully to admin@logiscore.net")
+            return {
+                "success": True,
+                "message": "Admin notification sent successfully",
+                "email_sent_to": "admin@logiscore.net"
+            }
+        else:
+            logger.error(f"Failed to send admin new forwarder notification")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to send admin notification"
+            )
+            
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        logger.error(f"Error in send_admin_new_forwarder_notification: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error while sending admin notification"
         )
