@@ -313,6 +313,17 @@ async def verify_signup_code(
         # Generate access token
         access_token = create_access_token(data={"sub": str(user.id)})
         
+        # Send welcome email to new user
+        try:
+            user_display_name = user.full_name or user.username or user.email
+            await email_service.send_welcome_email(
+                to_email=user.email,
+                full_name=user_display_name
+            )
+        except Exception as e:
+            # Log error but don't fail the signup process
+            print(f"Failed to send welcome email to {user.email}: {e}")
+        
         # Return user data
         user_data = {
             "id": str(user.id),

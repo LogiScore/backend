@@ -221,6 +221,16 @@ class EmailService:
                     
                     <p>Welcome to LogiScore, the premier platform for freight forwarder reviews and ratings.</p>
                     
+                    <p><strong>🎯 You've joined a community dedicated to improving service levels across the logistics industry!</strong></p>
+                    
+                    <p>By becoming part of LogiScore, you're helping to:</p>
+                    <ul>
+                        <li>🚀 <strong>Elevate Industry Standards</strong> - Your feedback drives quality improvements</li>
+                        <li>🤝 <strong>Build Trust</strong> - Help other businesses make informed decisions</li>
+                        <li>📈 <strong>Promote Excellence</strong> - Recognize and reward outstanding service providers</li>
+                        <li>🌍 <strong>Create Transparency</strong> - Share real experiences to benefit the global logistics community</li>
+                    </ul>
+                    
                     <p>With your new account, you can:</p>
                     <ul>
                         <li>📝 Write and read authentic reviews</li>
@@ -230,6 +240,11 @@ class EmailService:
                     </ul>
                     
                     <a href="https://logiscore.net" class="cta-button">Get Started Now</a>
+                    
+                    <p><strong>💡 Ready to make a difference?</strong></p>
+                    <p>Start by writing your first review or exploring existing ones. Every rating, every review, and every piece of feedback contributes to building a better, more transparent logistics industry.</p>
+                    
+                    <p><strong>Thank you for joining our mission to improve service levels across the logistics industry!</strong></p>
                     
                     <p>If you have any questions or need assistance, our support team is here to help!</p>
                     
