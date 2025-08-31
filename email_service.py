@@ -1269,5 +1269,258 @@ class EmailService:
             logger.info(f"FALLBACK: Admin new forwarder notification would be sent to admin@logiscore.net")
             return True  # Return True for fallback mode
 
+    async def send_subscription_expiration_warning(self, user_id: str, email_data: dict) -> bool:
+        """Send subscription expiration warning email (7 days before expiry)"""
+        try:
+            if not self.api_key:
+                # Fallback: log the notification to console for development
+                logger.info(f"FALLBACK: Subscription expiration warning for user {user_id}: {email_data}")
+                return True
+            
+            # Get user email from database or use provided data
+            user_email = email_data.get('email') or f"user_{user_id}@logiscore.com"
+            
+            # Create email message
+            subject = f"LogiScore - Your {email_data.get('subscription_tier', 'subscription')} expires in {email_data.get('days_remaining', '7')} days"
+            
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Subscription Expiring Soon</title>
+                <style>
+                    body {{
+                        font-family: Arial, sans-serif;
+                        line-height: 1.6;
+                        color: #333;
+                        max-width: 600px;
+                        margin: 0 auto;
+                        padding: 20px;
+                    }}
+                    .content {{
+                        background: #f8f9fa;
+                        padding: 30px;
+                        border-radius: 10px;
+                    }}
+                    .warning {{
+                        background: #fff3cd;
+                        border: 1px solid #ffeaa7;
+                        color: #856404;
+                        padding: 15px;
+                        border-radius: 5px;
+                        margin: 20px 0;
+                    }}
+                    .cta-button {{
+                        background: #007bff;
+                        color: white;
+                        padding: 15px 30px;
+                        text-decoration: none;
+                        border-radius: 5px;
+                        display: inline-block;
+                        margin: 20px 0;
+                        font-weight: bold;
+                    }}
+                    .footer {{
+                        text-align: center;
+                        margin-top: 30px;
+                        padding-top: 20px;
+                        border-top: 1px solid #dee2e6;
+                        color: #6c757d;
+                        font-size: 14px;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="content">
+                    <h2>Hello {email_data.get('user_name', 'there')}!</h2>
+                    
+                    <div class="warning">
+                        <h3>⚠️ Subscription Expiring Soon</h3>
+                        <p>Your <strong>{email_data.get('subscription_tier', 'subscription')}</strong> will expire on <strong>{email_data.get('expiry_date', 'the specified date')}</strong>.</p>
+                        <p>That's only <strong>{email_data.get('days_remaining', '7')} days</strong> from now!</p>
+                    </div>
+                    
+                    <p>To continue enjoying all the benefits of your LogiScore subscription, please renew before the expiration date.</p>
+                    
+                    <p><strong>What happens if you don't renew?</strong></p>
+                    <ul>
+                        <li>Your account will revert to the free tier</li>
+                        <li>You'll lose access to premium features</li>
+                        <li>Your data and settings will be preserved</li>
+                    </ul>
+                    
+                    <p><strong>Ready to renew?</strong></p>
+                    <a href="{email_data.get('renewal_link', 'https://logiscore.com/renew')}" class="cta-button">Renew Subscription Now</a>
+                    
+                    <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
+                    
+                    <p>Best regards,<br>The LogiScore Team</p>
+                </div>
+                
+                <div class="footer">
+                    <p>This is an automated notification from LogiScore.</p>
+                    <p>&copy; 2025 LogiScore. All rights reserved.</p>
+                </div>
+            </body>
+            </html>
+            """
+            
+            # Create SendGrid message
+            message = Mail(
+                from_email=Email(self.from_email, self.from_name),
+                to_emails=To(user_email),
+                subject=subject,
+                html_content=HtmlContent(html_content)
+            )
+            
+            # Send email
+            sg = SendGridAPIClient(self.api_key)
+            
+            # Set EU data residency if needed
+            if os.getenv('SENDGRID_EU_RESIDENCY', 'false').lower() == 'true':
+                sg.set_sendgrid_data_residency("eu")
+            
+            response = sg.send(message)
+            
+            if response.status_code == 202:
+                logger.info(f"Subscription expiration warning sent successfully to {user_email}")
+                return True
+            else:
+                logger.error(f"Failed to send subscription expiration warning. Status code: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error sending subscription expiration warning to {user_id}: {str(e)}")
+            logger.info(f"FALLBACK: Subscription expiration warning would be sent to user {user_id}")
+            return True  # Return True for fallback mode
+
+    async def send_subscription_expired_notification(self, user_id: str, email_data: dict) -> bool:
+        """Send notification when subscription has expired and been reverted to free"""
+        try:
+            if not self.api_key:
+                # Fallback: log the notification to console for development
+                logger.info(f"FALLBACK: Subscription expired notification for user {user_id}: {email_data}")
+                return True
+            
+            # Get user email from database or use provided data
+            user_email = email_data.get('email') or f"user_{user_id}@logiscore.com"
+            
+            # Create email message
+            subject = "LogiScore - Your subscription has expired"
+            
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Subscription Expired</title>
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    max-width: 600px;
+                    margin: 0 auto;
+                    padding: 20px;
+                }}
+                .content {{
+                    background: #f8f9fa;
+                    padding: 30px;
+                    border-radius: 10px;
+                }}
+                .expired {{
+                    background: #f8d7da;
+                    border: 1px solid #f5c6cb;
+                    color: #721c24;
+                    padding: 15px;
+                    border-radius: 5px;
+                    margin: 20px 0;
+                }}
+                .cta-button {{
+                    background: #007bff;
+                    color: white;
+                    padding: 15px 30px;
+                    text-decoration: none;
+                    border-radius: 5px;
+                    display: inline-block;
+                    margin: 20px 0;
+                    font-weight: bold;
+                }}
+                .footer {{
+                    text-align: center;
+                    margin-top: 30px;
+                    padding-top: 20px;
+                    border-top: 1px solid #dee2e6;
+                    color: #6c757d;
+                    font-size: 14px;
+                }}
+            </style>
+            </head>
+            <body>
+                <div class="content">
+                    <h2>Hello {email_data.get('user_name', 'there')}!</h2>
+                    
+                    <div class="expired">
+                        <h3>❌ Subscription Expired</h3>
+                        <p>Your <strong>{email_data.get('previous_tier', 'subscription')}</strong> has expired on <strong>{email_data.get('expiry_date', 'the specified date')}</strong>.</p>
+                    </div>
+                    
+                    <p>Your account has been automatically reverted to the free tier. Don't worry - all your data and settings have been preserved.</p>
+                    
+                    <p><strong>What you can still do with the free tier:</strong></p>
+                    <ul>
+                        <li>Access basic LogiScore features</li>
+                        <li>View limited freight forwarder information</li>
+                        <li>Submit basic reviews</li>
+                    </ul>
+                    
+                    <p><strong>To restore premium access:</strong></p>
+                    <a href="https://logiscore.com/renew" class="cta-button">Renew Subscription Now</a>
+                    
+                    <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
+                    
+                    <p>Best regards,<br>The LogiScore Team</p>
+                </div>
+                
+                <div class="footer">
+                    <p>This is an automated notification from LogiScore.</p>
+                    <p>&copy; 2025 LogiScore. All rights reserved.</p>
+                </div>
+            </body>
+            </html>
+            """
+            
+            # Create SendGrid message
+            message = Mail(
+                from_email=Email(self.from_email, self.from_name),
+                to_emails=To(user_email),
+                subject=subject,
+                html_content=HtmlContent(html_content)
+            )
+            
+            # Send email
+            sg = SendGridAPIClient(self.api_key)
+            
+            # Set EU data residency if needed
+            if os.getenv('SENDGRID_EU_RESIDENCY', 'false').lower() == 'true':
+                sg.set_sendgrid_data_residency("eu")
+            
+            response = sg.send(message)
+            
+            if response.status_code == 202:
+                logger.info(f"Subscription expired notification sent successfully to {user_email}")
+                return True
+            else:
+                logger.error(f"Failed to send subscription expired notification. Status code: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error sending subscription expired notification to {user_id}: {str(e)}")
+            logger.info(f"FALLBACK: Subscription expired notification would be sent to user {user_id}")
+            return True  # Return True for fallback mode
+
 # Create singleton instance
 email_service = EmailService()

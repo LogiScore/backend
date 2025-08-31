@@ -230,10 +230,13 @@ class SubscriptionService:
                     from datetime import datetime, timedelta
                     try:
                         user.subscription_end_date = datetime.utcnow() + timedelta(days=duration * 30)  # Approximate months to days
+                        user.subscription_start_date = datetime.utcnow()
+                        user.subscription_status = 'active'
+                        logger.info(f"Set subscription start date to: {user.subscription_start_date}")
                         logger.info(f"Set subscription end date to: {user.subscription_end_date}")
                     except Exception as date_error:
-                        logger.warning(f"Could not set subscription end date: {str(date_error)}")
-                        # Continue without setting the date
+                        logger.warning(f"Could not set subscription dates: {str(date_error)}")
+                        # Continue without setting the dates
                 
                 # Log comment if provided
                 if comment:
@@ -282,23 +285,23 @@ class SubscriptionService:
             if not user:
                 raise Exception("User not found")
             
-            # Calculate days remaining - temporarily hardcoded until migration
+            # Calculate days remaining
             days_remaining = 0
-            # if user.subscription_end_date:
-            #     days_remaining = max(0, (user.subscription_end_date - datetime.utcnow()).days)
+            if user.subscription_end_date:
+                days_remaining = max(0, (user.subscription_end_date - datetime.utcnow()).days)
             
             return {
                 'id': str(user.id),
                 'user_id': str(user.id),
                 'tier': user.subscription_tier,
-                'status': 'active',  # Temporarily hardcoded until migration
-                'start_date': None,  # user.subscription_start_date,
-                'end_date': None,  # user.subscription_end_date,
-                'auto_renew': False,  # user.auto_renew_enabled,
-                'stripe_subscription_id': None,  # user.stripe_subscription_id,
+                'status': user.subscription_status or 'active',
+                'start_date': user.subscription_start_date.isoformat() if user.subscription_start_date else None,
+                'end_date': user.subscription_end_date.isoformat() if user.subscription_end_date else None,
+                'auto_renew': user.auto_renew_enabled or False,
+                'stripe_subscription_id': user.stripe_subscription_id,
                 'days_remaining': days_remaining,
-                'last_billing_date': None,  # user.last_billing_date,
-                'next_billing_date': None  # user.next_billing_date
+                'last_billing_date': user.last_billing_date.isoformat() if user.last_billing_date else None,
+                'next_billing_date': user.next_billing_date.isoformat() if user.next_billing_date else None
             }
             
         except Exception as e:

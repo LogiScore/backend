@@ -660,6 +660,78 @@ async def update_user_subscription(
                 detail=f"Failed to update subscription: {str(e)}"
             )
 
+@router.post("/subscriptions/check-expiration")
+async def check_subscription_expiration(
+    admin_user: User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Check for expiring subscriptions and send notifications (admin only)"""
+    try:
+        from services.subscription_expiration_service import SubscriptionExpirationService
+        expiration_service = SubscriptionExpirationService()
+        
+        logger.info("Admin triggered subscription expiration check")
+        result = await expiration_service.check_expiring_subscriptions(db=db)
+        
+        return {
+            "message": "Subscription expiration check completed",
+            "result": result
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to check subscription expiration: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to check subscription expiration: {str(e)}"
+        )
+
+@router.get("/subscriptions/expiration-summary")
+async def get_subscription_expiration_summary(
+    admin_user: User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get summary of expiring subscriptions for admin dashboard"""
+    try:
+        from services.subscription_expiration_service import SubscriptionExpirationService
+        expiration_service = SubscriptionExpirationService()
+        
+        summary = await expiration_service.get_expiring_subscriptions_summary(db=db)
+        
+        return summary
+        
+    except Exception as e:
+        logger.error(f"Failed to get subscription expiration summary: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get subscription expiration summary: {str(e)}"
+        )
+
+@router.post("/users/{user_id}/force-check-expiration")
+async def force_check_user_subscription_expiration(
+    user_id: str,
+    admin_user: User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Force check expiration for a specific user (admin only)"""
+    try:
+        from services.subscription_expiration_service import SubscriptionExpirationService
+        expiration_service = SubscriptionExpirationService()
+        
+        logger.info(f"Admin force checking expiration for user {user_id}")
+        result = await expiration_service.force_check_expiration(user_id=user_id, db=db)
+        
+        return {
+            "message": "Force expiration check completed",
+            "result": result
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to force check user expiration: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to force check user expiration: {str(e)}"
+        )
+
 @router.put("/users/{user_id}", response_model=AdminUser)
 async def update_user(
     user_id: str,
