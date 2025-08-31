@@ -153,23 +153,63 @@ class SubscriptionService:
             logger.error(f"Failed to reactivate subscription: {str(e)}")
             raise Exception(f"Failed to reactivate subscription: {str(e)}")
     
-    async def update_subscription_plan(self, user_id: str, new_tier: str, db: Session = None) -> Dict[str, Any]:
+    async def update_subscription_plan(self, user_id: str, new_tier: str, duration: Optional[int] = None, comment: Optional[str] = None, db: Session = None) -> Dict[str, Any]:
         """Update subscription to different plan"""
         try:
             if not db:
                 db = next(get_db())
             
-            user = db.query(User).filter(User.id == user_id).first()
+            # Validate inputs
+            if not user_id:
+                raise Exception("User ID is required")
+            if not new_tier:
+                raise Exception("New tier is required")
+            
+            # Validate tier value
+            valid_tiers = ['free', 'monthly', 'annual', 'enterprise', 'shipper_monthly', 'shipper_annual', 'forwarder_monthly', 'forwarder_annual', 'forwarder_annual_plus']
+            if new_tier not in valid_tiers:
+                raise Exception(f"Invalid tier: {new_tier}. Must be one of: {', '.join(valid_tiers)}")
+            
+            # Validate duration if provided
+            if duration is not None and duration <= 0:
+                raise Exception(f"Duration must be a positive number, got: {duration}")
+            
+            logger.info(f"Updating subscription plan for user {user_id} to tier {new_tier}")
+            logger.info(f"Database session active: {db.is_active if db else 'No session'}")
+            logger.info(f"Database session type: {type(db) if db else 'No session'}")
+            
+            try:
+                logger.info(f"Executing database query for user {user_id}")
+                user = db.query(User).filter(User.id == user_id).first()
+                if not user:
+                    raise Exception("User not found")
+                logger.info(f"Found user: {user.email}, current tier: {user.subscription_tier}")
+            except Exception as query_error:
+                logger.error(f"Database query failed: {str(query_error)}")
+                logger.error(f"Query error type: {type(query_error)}")
+                import traceback
+                logger.error(f"Query error traceback: {traceback.format_exc()}")
+                raise Exception(f"Failed to query user: {str(query_error)}")
+            
             # Temporarily commented out until migration
             # if not user or not user.stripe_subscription_id:
             #     raise Exception("No active subscription found")
-            if not user:
-                raise Exception("User not found")
             
             # Get new price ID
-            new_price_id = await self.stripe_service.get_price_id_for_tier(new_tier, user.user_type)
-            if not new_price_id:
-                raise Exception(f"No Stripe price configured for tier: {new_tier}")
+            try:
+                new_price_id = await self.stripe_service.get_price_id_for_tier(new_tier, user.user_type)
+                if not new_price_id:
+                    # Log available tiers for debugging
+                    logger.warning(f"No Stripe price found for tier: {new_tier}, user_type: {user.user_type}")
+                    logger.warning(f"Available tiers: {list(self.stripe_service.STRIPE_PRICE_IDS.keys())}")
+                    # For now, allow the update without Stripe integration (as per commented code)
+                    logger.info(f"Proceeding with database update only for tier: {new_tier}")
+                else:
+                    logger.info(f"Found Stripe price ID: {new_price_id} for tier: {new_tier}")
+            except Exception as stripe_error:
+                logger.error(f"Stripe service error: {str(stripe_error)}")
+                # Continue with database update only
+                logger.info(f"Proceeding with database update only due to Stripe error")
             
             # Update in Stripe - temporarily commented out until migration
             # stripe_subscription = await self.stripe_service.update_subscription_plan(
@@ -178,13 +218,58 @@ class SubscriptionService:
             # )
             
             # Update database
-            user.subscription_tier = new_tier
-            db.commit()
+            try:
+                logger.info(f"Updating user {user_id} subscription tier from {user.subscription_tier} to {new_tier}")
+                logger.info(f"User object before update: {user.__dict__}")
+                
+                # Update subscription tier
+                user.subscription_tier = new_tier
+                
+                # Update subscription end date if duration is provided
+                if duration is not None:
+                    from datetime import datetime, timedelta
+                    try:
+                        user.subscription_end_date = datetime.utcnow() + timedelta(days=duration * 30)  # Approximate months to days
+                        logger.info(f"Set subscription end date to: {user.subscription_end_date}")
+                    except Exception as date_error:
+                        logger.warning(f"Could not set subscription end date: {str(date_error)}")
+                        # Continue without setting the date
+                
+                # Log comment if provided
+                if comment:
+                    logger.info(f"Admin comment: {comment}")
+                
+                logger.info(f"User object after update: {user.__dict__}")
+                db.commit()
+                logger.info(f"Successfully updated user {user_id} subscription tier to {new_tier}")
+            except Exception as db_error:
+                logger.error(f"Database update failed: {str(db_error)}")
+                logger.error(f"Database error type: {type(db_error)}")
+                import traceback
+                logger.error(f"Database error traceback: {traceback.format_exc()}")
+                try:
+                    db.rollback()
+                    logger.info("Database rollback successful")
+                except Exception as rollback_error:
+                    logger.error(f"Database rollback failed: {str(rollback_error)}")
+                raise Exception(f"Database update failed: {str(db_error)}")
             
-            return {"message": "Subscription plan updated successfully"}
+            result = {
+                "message": "Subscription plan updated successfully", 
+                "tier": new_tier,
+                "duration": duration,
+                "comment": comment
+            }
+            logger.info(f"Subscription update completed successfully: {result}")
+            logger.info(f"Returning result: {result}")
+            return result
             
         except Exception as e:
-            logger.error(f"Failed to update subscription plan: {str(e)}")
+            logger.error(f"Failed to update subscription plan for user {user_id}: {str(e)}")
+            logger.error(f"Exception type: {type(e)}")
+            # Log the full exception details for debugging
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             raise Exception(f"Failed to update subscription plan: {str(e)}")
     
     async def get_user_subscription(self, user_id: str, db: Session = None) -> Dict[str, Any]:

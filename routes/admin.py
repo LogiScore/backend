@@ -5,12 +5,14 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, timedelta
 import uuid
+import logging
 
 from database.database import get_db
 from database.models import User, FreightForwarder, Review, Dispute
 from auth.auth import get_current_user
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # Pydantic models for admin responses
 class DashboardStats(BaseModel):
@@ -140,8 +142,8 @@ class AdminCompany(BaseModel):
 
 class SubscriptionUpdate(BaseModel):
     tier: str
-    payment_method_id: Optional[str] = None
-    trial_days: Optional[int] = 0
+    comment: Optional[str] = None
+    duration: Optional[int] = None
     is_paid: Optional[bool] = False
 
 class UserUpdateRequest(BaseModel):
@@ -584,8 +586,15 @@ async def update_user_subscription(
 ):
     """Update user subscription with Stripe integration"""
     try:
-        from services.subscription_service import SubscriptionService
-        subscription_service = SubscriptionService()
+        try:
+            from services.subscription_service import SubscriptionService
+            subscription_service = SubscriptionService()
+        except ImportError as import_error:
+            logger.error(f"Failed to import SubscriptionService: {str(import_error)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Service unavailable. Please try again later."
+            )
         
         # Get user first
         user = db.query(User).filter(User.id == user_id).first()
@@ -595,28 +604,61 @@ async def update_user_subscription(
                 detail="User not found"
             )
         
-        # Create subscription using the service
-        subscription_result = await subscription_service.create_subscription(
+        # Validate subscription tier
+        valid_tiers = ['free', 'monthly', 'annual', 'enterprise', 'shipper_monthly', 'shipper_annual', 'forwarder_monthly', 'forwarder_annual', 'forwarder_annual_plus']
+        logger.info(f"Subscription update request: {subscription_update.dict()}")
+        logger.info(f"Valid tiers: {valid_tiers}")
+        logger.info(f"Requested tier: {subscription_update.tier}")
+        
+        if subscription_update.tier not in valid_tiers:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid subscription tier. Must be one of: {', '.join(valid_tiers)}"
+            )
+        
+        # Update subscription using the service
+        logger.info(f"Admin updating user {user_id} subscription from {user.subscription_tier} to {subscription_update.tier}")
+        
+        # Ensure database session is active
+        logger.info(f"Database session active: {db.is_active}, session ID: {id(db)}")
+        logger.info(f"Database session type: {type(db)}")
+        
+        if not db.is_active:
+            logger.error("Database session is not active")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database connection error. Please try again."
+            )
+        
+        subscription_result = await subscription_service.update_subscription_plan(
             user_id=user_id,
-            tier=subscription_update.tier,
-            user_type=user.user_type,
-            payment_method_id=subscription_update.payment_method_id,
-            trial_days=subscription_update.trial_days,
-            is_paid=subscription_update.is_paid,
+            new_tier=subscription_update.tier,
+            duration=subscription_update.duration,
+            comment=subscription_update.comment,
             db=db
         )
+        logger.info(f"Subscription service call completed successfully")
+        logger.info(f"Subscription update result: {subscription_result}")
         
-        return {
-            "message": "Subscription updated successfully",
-            "subscription_id": subscription_result['subscription_id'],
-            "status": subscription_result['status']
-        }
+        return subscription_result
         
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update subscription: {str(e)}"
-        )
+        logger.error(f"Failed to update subscription for user {user_id}: {str(e)}")
+        logger.error(f"Exception type: {type(e)}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        
+        # Check if it's a database session issue
+        if "database" in str(e).lower() or "session" in str(e).lower():
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database connection error. Please try again."
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to update subscription: {str(e)}"
+            )
 
 @router.put("/users/{user_id}", response_model=AdminUser)
 async def update_user(

@@ -175,6 +175,11 @@ class StripeService:
     
     async def get_price_id_for_tier(self, tier: str, user_type: str) -> Optional[str]:
         """Get Stripe price ID for subscription tier"""
+        # First try the tier directly
+        if tier in self.STRIPE_PRICE_IDS:
+            return self.STRIPE_PRICE_IDS.get(tier)
+        
+        # Then try constructing the key with user_type
         tier_key = f"{user_type}_{tier}"
         return self.STRIPE_PRICE_IDS.get(tier_key)
     
