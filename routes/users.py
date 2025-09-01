@@ -247,7 +247,7 @@ async def signup(
         
         # Create new user
         user = User(
-            id=str(uuid.uuid4()),
+            id=uuid.uuid4(),
             email=signup_request.email,
             username=signup_request.name,
             full_name=signup_request.name,

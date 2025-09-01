@@ -160,7 +160,7 @@ async def send_signup_code(
         
         # Create new user with proper user_type
         user = User(
-            id=str(uuid.uuid4()),
+            id=uuid.uuid4(),
             email=email,
             username=username,
             user_type=user_type,  # Use the specified user type
