@@ -19,11 +19,11 @@ services:
         value: whsec_your_webhook_secret_here
 
   - type: cron
-    name: subscription-expiry-check
+    name: logiscore-subscription-check
     env: python
     buildCommand: pip install -r requirements.txt
     schedule: "0 9 * * *"
-    command: bash scripts/run_subscription_check.sh
+    command: python3 run_subscription_check.py
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
