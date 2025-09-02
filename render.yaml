@@ -16,4 +16,24 @@ services:
       - key: STRIPE_PUBLISHABLE_KEY
         value: pk_test_your_stripe_key_here
       - key: STRIPE_WEBHOOK_SECRET
+        value: whsec_your_webhook_secret_here
+
+  - type: cron
+    name: subscription-expiry-check
+    env: python
+    buildCommand: pip install -r requirements.txt
+    schedule: "0 9 * * *"
+    command: python3 scripts/check_subscription_expiration.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DATABASE_URL
+        value: postgresql://postgres:[YOUR-SUPABASE-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: STRIPE_SECRET_KEY
+        value: sk_test_your_stripe_key_here
+      - key: STRIPE_PUBLISHABLE_KEY
+        value: pk_test_your_stripe_key_here
+      - key: STRIPE_WEBHOOK_SECRET
         value: whsec_your_webhook_secret_here 

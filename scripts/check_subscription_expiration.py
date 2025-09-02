@@ -25,6 +25,11 @@ from services.subscription_expiration_service import SubscriptionExpirationServi
 from database.database import get_db
 
 # Configure logging
+import os
+
+# Ensure logs directory exists
+os.makedirs('logs', exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
