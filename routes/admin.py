@@ -1264,6 +1264,8 @@ async def update_company(
                 name=company.name,
                 website=company.website,
                 logo_url=company.logo_url,
+                description=company.description,
+                headquarters_country=company.headquarters_country,
                 reviews_count=reviews_count,
                 status="active"
             )
@@ -1450,6 +1452,8 @@ async def get_company(
             name=company.name,
             website=company.website,
             logo_url=company.logo_url,
+            description=company.description,
+            headquarters_country=company.headquarters_country,
             reviews_count=reviews_count,
             status="active"
         )
