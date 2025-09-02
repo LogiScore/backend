@@ -495,11 +495,7 @@ async def create_freight_forwarder(
         # Send admin notification email
         try:
             forwarder_data = {
-                "name": new_freight_forwarder.name,
-                "website": new_freight_forwarder.website,
-                "description": new_freight_forwarder.description,
-                "headquarters_country": new_freight_forwarder.headquarters_country,
-                "logo_url": new_freight_forwarder.logo_url
+                "name": new_freight_forwarder.name
             }
             
             creator_data = {

@@ -1199,10 +1199,7 @@ class EmailService:
                     
                     <div class="company-info">
                         <h3>🏢 {forwarder_data.get('name', 'Unknown Company')}</h3>
-                        <p><strong>Website:</strong> {forwarder_data.get('website', 'Not provided')}</p>
-                        <p><strong>Description:</strong> {forwarder_data.get('description', 'Not provided')}</p>
-                        <p><strong>Headquarters Country:</strong> {forwarder_data.get('headquarters_country', 'Not specified')}</p>
-                        <p><strong>Logo URL:</strong> {forwarder_data.get('logo_url', 'Not provided')}</p>
+                        <p><strong>Website:</strong> <a href="https://logiscore.net/8x7k9m2p" target="_blank">Company Management</a></p>
                     </div>
                     
                     <h2>Creator Information</h2>
