@@ -69,6 +69,7 @@ class AdminReview(BaseModel):
     rating: int
     comment: Optional[str]
     status: str
+    shipment_reference: Optional[str] = None
     created_at: Optional[str] = None
 
     class Config:
@@ -85,6 +86,7 @@ class AdminReview(BaseModel):
             'rating': int(obj.aggregate_rating) if obj.aggregate_rating else 0,
             'comment': "",  # review_text field removed from database
             'status': "active" if obj.is_active else "inactive",
+            'shipment_reference': obj.shipment_reference if hasattr(obj, 'shipment_reference') else None,
             'created_at': obj.created_at.isoformat() if obj.created_at else None
         }
         return cls(**data)
@@ -920,24 +922,31 @@ async def get_reviews(
 ):
     """Get reviews for admin moderation"""
     try:
-        query = db.query(Review).join(FreightForwarder)
+        # Join with FreightForwarder to get company names
+        query = db.query(Review, FreightForwarder).join(
+            FreightForwarder, Review.freight_forwarder_id == FreightForwarder.id
+        )
         
         if status_filter:
             query = query.filter(Review.is_active == True)
         
-        reviews = query.offset(skip).limit(limit).all()
+        # Order by most recent first
+        query = query.order_by(Review.created_at.desc())
+        
+        results = query.offset(skip).limit(limit).all()
         
         return [
             AdminReview(
                 id=str(review.id),
-                freight_forwarder_name="Company ID: " + str(review.freight_forwarder_id)[:8] + "..." if hasattr(review, 'freight_forwarder_id') and review.freight_forwarder_id else "Unknown Company",
+                freight_forwarder_name=freight_forwarder.name if freight_forwarder else "Unknown Company",
                 reviewer_name=review.user.username if review.user and hasattr(review.user, 'username') else "Anonymous",
                 rating=int(review.aggregate_rating) if review.aggregate_rating else 0,
                 comment="",  # review_text field removed from database
                 status="active" if review.is_active else "inactive",
+                shipment_reference=review.shipment_reference if hasattr(review, 'shipment_reference') else None,
                 created_at=review.created_at.isoformat() if review.created_at else None
             )
-            for review in reviews
+            for review, freight_forwarder in results
         ]
     except Exception as e:
         raise HTTPException(
