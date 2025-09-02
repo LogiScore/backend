@@ -70,6 +70,8 @@ class AdminReview(BaseModel):
     comment: Optional[str]
     status: str
     shipment_reference: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
     created_at: Optional[str] = None
 
     class Config:
@@ -87,6 +89,8 @@ class AdminReview(BaseModel):
             'comment': "",  # review_text field removed from database
             'status': "active" if obj.is_active else "inactive",
             'shipment_reference': obj.shipment_reference if hasattr(obj, 'shipment_reference') else None,
+            'city': obj.city if hasattr(obj, 'city') else None,
+            'country': obj.country if hasattr(obj, 'country') else None,
             'created_at': obj.created_at.isoformat() if obj.created_at else None
         }
         return cls(**data)
@@ -944,6 +948,8 @@ async def get_reviews(
                 comment="",  # review_text field removed from database
                 status="active" if review.is_active else "inactive",
                 shipment_reference=review.shipment_reference if hasattr(review, 'shipment_reference') else None,
+                city=review.city if hasattr(review, 'city') else None,
+                country=review.country if hasattr(review, 'country') else None,
                 created_at=review.created_at.isoformat() if review.created_at else None
             )
             for review, freight_forwarder in results
