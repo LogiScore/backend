@@ -1492,4 +1492,45 @@ async def get_company(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get company: {str(e)}"
+        )
+
+@router.post("/cron/subscription-expiration-check")
+async def cron_subscription_expiration_check(
+    cron_secret: str,
+    db: Session = Depends(get_db)
+):
+    """Public endpoint for external cron services to trigger subscription expiration check"""
+    try:
+        import os
+        
+        # Check if the secret matches the environment variable
+        expected_secret = os.getenv("CRON_SECRET_KEY", "default-secret-change-me")
+        if cron_secret != expected_secret:
+            logger.warning(f"Invalid cron secret attempted: {cron_secret[:10]}...")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid cron secret"
+            )
+        
+        from services.subscription_expiration_service import SubscriptionExpirationService
+        expiration_service = SubscriptionExpirationService()
+        
+        logger.info("External cron triggered subscription expiration check")
+        result = await expiration_service.check_expiring_subscriptions(db=db)
+        
+        return {
+            "success": True,
+            "message": "Subscription expiration check completed",
+            "notifications_sent": result.get('notifications_sent', 0),
+            "subscriptions_reverted": result.get('subscriptions_reverted', 0),
+            "checked_at": result.get('checked_at')
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to run cron subscription expiration check: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to check subscription expiration: {str(e)}"
         ) 

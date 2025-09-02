@@ -17,5 +17,7 @@ services:
         value: pk_test_your_stripe_key_here
       - key: STRIPE_WEBHOOK_SECRET
         value: whsec_your_webhook_secret_here
+      - key: CRON_SECRET_KEY
+        generateValue: true
 
  
