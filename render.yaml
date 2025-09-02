@@ -23,7 +23,7 @@ services:
     env: python
     buildCommand: pip install -r requirements.txt
     schedule: "0 9 * * *"
-    command: python3 scripts/check_subscription_expiration.py
+    command: bash scripts/run_subscription_check.sh
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
