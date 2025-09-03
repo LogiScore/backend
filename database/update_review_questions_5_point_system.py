@@ -8,31 +8,12 @@ from the LogiScore Review Questions document.
 import os
 import sys
 import logging
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-def get_database_url():
-    """Get database URL from environment variables"""
-    # Try different environment variable names
-    database_url = os.getenv('DATABASE_URL')
-    if not database_url:
-        # Try constructing from individual components
-        db_host = os.getenv('DB_HOST', 'localhost')
-        db_port = os.getenv('DB_PORT', '5432')
-        db_name = os.getenv('DB_NAME', 'logiscore')
-        db_user = os.getenv('DB_USER', 'postgres')
-        db_password = os.getenv('DB_PASSWORD', '')
-        
-        if db_password:
-            database_url = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
-        else:
-            database_url = f"postgresql://{db_user}@{db_host}:{db_port}/{db_name}"
-    
-    return database_url
 
 def get_review_questions_data():
     """Get the review questions data based on the LogiScore Review Questions document"""
@@ -547,13 +528,12 @@ def get_review_questions_data():
 def update_review_questions():
     """Update the review_questions table with the proper 5-point system"""
     try:
-        database_url = get_database_url()
-        if not database_url:
-            logger.error("No database URL found in environment variables")
-            return False
+        # Import database connection from the main app
+        from database.database import get_engine
+        from database.models import ReviewQuestion
         
-        logger.info(f"Connecting to database...")
-        engine = create_engine(database_url)
+        logger.info("Connecting to database using app's connection method...")
+        engine = get_engine()
         
         with engine.connect() as conn:
             # Start a transaction
