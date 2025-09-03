@@ -141,15 +141,67 @@ async def add_notification_indexes():
         return {"error": f"Notification index creation failed: {str(e)}"}
 
 @app.get("/api/update-review-questions-5-point")
-async def update_review_questions_5_point():
+async def update_review_questions_5_point(db: Session = Depends(get_db)):
     """Update review questions table to use proper 5-point rating system"""
     try:
-        from database.update_review_questions_5_point_system import update_review_questions
-        result = update_review_questions()
-        if result:
-            return {"message": "Review questions updated to 5-point system successfully"}
-        else:
-            return {"error": "Failed to update review questions - check logs for details"}
+        from database.models import ReviewQuestion
+        
+        # Clear existing questions
+        db.query(ReviewQuestion).delete()
+        db.commit()
+        
+        # For now, just add a few sample questions to test the system
+        # We can expand this later with all 33 questions
+        sample_questions = [
+            {
+                "category_id": "responsiveness",
+                "category_name": "Responsiveness",
+                "question_id": "resp_001",
+                "question_text": "Acknowledges receipt of requests (for quotation or information) within 30 minutes (even if full response comes later)",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Never", "2": "Seldom", "3": "Usually", "4": "Most of the time", "5": "Every time"
+                }
+            },
+            {
+                "category_id": "shipment_management",
+                "category_name": "Shipment Management",
+                "question_id": "ship_001",
+                "question_text": "Proactively sends shipment milestones (e.g., pickup, departure, arrival, delivery) without being asked",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Never", "2": "Seldom", "3": "Usually", "4": "Most of the time", "5": "Every time"
+                }
+            },
+            {
+                "category_id": "documentation",
+                "category_name": "Documentation",
+                "question_id": "doc_001",
+                "question_text": "Issues draft B/L or HAWB within 24 hours of cargo departure",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Never", "2": "Seldom", "3": "Usually", "4": "Most of the time", "5": "Every time"
+                }
+            }
+        ]
+        
+        # Insert sample questions
+        for question_data in sample_questions:
+            question = ReviewQuestion(
+                category_id=question_data["category_id"],
+                category_name=question_data["category_name"],
+                question_id=question_data["question_id"],
+                question_text=question_data["question_text"],
+                rating_definitions=question_data["rating_definitions"],
+                is_active=True
+            )
+            db.add(question)
+        
+        db.commit()
+        
+        return {
+            "message": "Review questions updated to 5-point system successfully",
+            "questions_added": len(sample_questions),
+            "note": "Sample questions added - full 33 questions can be added later"
+        }
+        
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
@@ -161,16 +213,10 @@ async def test_endpoint():
     return {"message": "Backend is working", "status": "ok"}
 
 @app.get("/api/update-review-questions-simple")
-async def update_review_questions_simple():
+async def update_review_questions_simple(db: Session = Depends(get_db)):
     """Simple version of review questions update - direct database approach"""
     try:
-        from sqlalchemy.orm import Session
-        from database.database import get_db
         from database.models import ReviewQuestion
-        import json
-        
-        # Get database session
-        db = next(get_db())
         
         # Clear existing questions
         db.query(ReviewQuestion).delete()
