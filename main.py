@@ -152,6 +152,11 @@ async def update_review_questions_5_point():
     except Exception as e:
         return {"error": f"Review questions update failed: {str(e)}"}
 
+@app.get("/api/test-endpoint")
+async def test_endpoint():
+    """Test endpoint to verify deployment is working"""
+    return {"message": "Backend is working", "status": "ok"}
+
 # Add backward compatibility routes for auth endpoints
 app.include_router(auth.router, prefix="/auth", tags=["auth-compat"])
 
