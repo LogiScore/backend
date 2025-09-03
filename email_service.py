@@ -1549,20 +1549,11 @@ class EmailService:
             
             # Get category scores for the review
             category_scores_html = ""
-            logger.info(f"Review data keys: {list(review_data.keys())}")
-            logger.info(f"Category scores in review_data: {'category_scores' in review_data}")
-            if 'category_scores' in review_data:
-                logger.info(f"Category scores data: {review_data['category_scores']}")
-                if review_data['category_scores']:
-                    category_scores_html = "<div class='category-scores'><h4>Category Breakdown:</h4><ul>"
-                    for category in review_data['category_scores']:
-                        category_scores_html += f"<li><strong>{category['category_name']}:</strong> {category['rating']}/5</li>"
-                    category_scores_html += "</ul></div>"
-                    logger.info(f"Generated category scores HTML: {category_scores_html}")
-                else:
-                    logger.info("Category scores list is empty")
-            else:
-                logger.info("No category_scores key in review_data")
+            if 'category_scores' in review_data and review_data['category_scores']:
+                category_scores_html = "<div class='category-scores'><h4>Category Breakdown:</h4><ul>"
+                for category in review_data['category_scores']:
+                    category_scores_html += f"<li><strong>{category['category_name']}:</strong> {category['rating']}/5</li>"
+                category_scores_html += "</ul></div>"
             
             html_content = f"""
             <!DOCTYPE html>
