@@ -1019,37 +1019,29 @@ async def get_user_reviews_for_company(
 async def trigger_review_notifications(review: Review, freight_forwarder: FreightForwarder, db: Session):
     """
     Trigger email notifications for a new review submission.
-    This function calls the notification endpoint internally.
+    This function calls the notification service directly instead of making HTTP requests.
     """
     try:
-        import httpx
+        from routes.notifications import trigger_review_notification
+        from routes.notifications import ReviewNotificationTrigger
+        from datetime import datetime
         
         # Prepare notification data
-        notification_data = {
-            "review_id": str(review.id),
-            "freight_forwarder_id": str(review.freight_forwarder_id),
-            "freight_forwarder_name": freight_forwarder.name,
-            "country": review.country or "",
-            "city": review.city or "",
-            "reviewer_name": "Anonymous User" if review.is_anonymous else (review.user.full_name if review.user else "Anonymous User"),
-            "rating": float(review.aggregate_rating or 0),
-            "review_text": "Review submitted",  # We don't store full review text in the main review table
-            "created_at": review.created_at.isoformat()
-        }
+        notification_data = ReviewNotificationTrigger(
+            review_id=str(review.id),
+            freight_forwarder_id=str(review.freight_forwarder_id),
+            freight_forwarder_name=freight_forwarder.name,
+            country=review.country or "",
+            city=review.city or "",
+            reviewer_name="Anonymous User" if review.is_anonymous else (review.user.full_name if review.user else "Anonymous User"),
+            rating=float(review.aggregate_rating or 0),
+            review_text="Review submitted",  # We don't store full review text in the main review table
+            created_at=review.created_at
+        )
         
-        # Call the notification endpoint internally
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "http://localhost:8000/api/notifications/trigger-review-notification",
-                json=notification_data,
-                timeout=30.0
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                logger.info(f"Notifications triggered successfully for review {review.id}: {result.get('notifications_sent', 0)} emails sent")
-            else:
-                logger.error(f"Failed to trigger notifications: {response.status_code} - {response.text}")
+        # Call the notification function directly
+        result = await trigger_review_notification(notification_data, db)
+        logger.info(f"Notifications triggered successfully for review {review.id}: {result.notifications_sent} emails sent")
                 
     except Exception as e:
         logger.error(f"Error triggering notifications for review {review.id}: {str(e)}")

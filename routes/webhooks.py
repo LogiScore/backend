@@ -245,10 +245,11 @@ async def handle_review_updated(event: Dict[str, Any]):
 async def cleanup_user_notifications(user_id: str, old_tier: str, new_tier: str, db: Session):
     """
     Clean up notification subscriptions when user subscription is downgraded.
-    This function calls the notification cleanup endpoint internally.
+    This function calls the notification cleanup service directly instead of making HTTP requests.
     """
     try:
-        import httpx
+        from routes.notifications import cleanup_subscriptions
+        from routes.notifications import SubscriptionCleanupRequest
         
         # Determine cleanup reason
         cleanup_reason = "downgrade"
@@ -258,26 +259,16 @@ async def cleanup_user_notifications(user_id: str, old_tier: str, new_tier: str,
             cleanup_reason = "expiry"
         
         # Prepare cleanup data
-        cleanup_data = {
-            "user_id": user_id,
-            "old_subscription_tier": old_tier,
-            "new_subscription_tier": new_tier,
-            "cleanup_reason": cleanup_reason
-        }
+        cleanup_data = SubscriptionCleanupRequest(
+            user_id=user_id,
+            old_subscription_tier=old_tier,
+            new_subscription_tier=new_tier,
+            cleanup_reason=cleanup_reason
+        )
         
-        # Call the notification cleanup endpoint internally
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "http://localhost:8000/api/notifications/cleanup-subscriptions",
-                json=cleanup_data,
-                timeout=30.0
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                logger.info(f"Notification cleanup completed for user {user_id}: {result.get('deleted_subscriptions', 0)} subscriptions removed")
-            else:
-                logger.error(f"Failed to cleanup notifications: {response.status_code} - {response.text}")
+        # Call the notification cleanup function directly
+        result = await cleanup_subscriptions(cleanup_data, db)
+        logger.info(f"Notification cleanup completed for user {user_id}: {result.deleted_subscriptions} subscriptions removed")
                 
     except Exception as e:
         logger.error(f"Error cleaning up notifications for user {user_id}: {str(e)}")
