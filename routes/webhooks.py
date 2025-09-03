@@ -139,8 +139,21 @@ async def handle_subscription_updated(event: Dict[str, Any]):
             db = next(get_db())
             subscription_service = SubscriptionService()
             
+            # Get current subscription status
+            current_status = subscription.status
+            old_tier = subscription.metadata.get('old_tier', 'unknown')
+            new_tier = subscription.metadata.get('new_tier', 'unknown')
+            
             # Update subscription details in database
             await subscription_service.update_subscription_from_stripe(subscription)
+            
+            # Check if subscription was downgraded to free/basic tier
+            if current_status in ['canceled', 'past_due', 'unpaid'] or new_tier in ['free', 'basic']:
+                try:
+                    # Trigger notification cleanup
+                    await cleanup_user_notifications(user_id, old_tier, new_tier, db)
+                except Exception as e:
+                    logger.error(f"Failed to cleanup notifications for user {user_id}: {str(e)}")
             
             logger.info(f"Subscription updated for user: {user_id}")
     except Exception as e:
@@ -228,6 +241,47 @@ async def handle_review_updated(event: Dict[str, Any]):
             logger.info(f"Processed review update webhook: {review_id}")
     except Exception as e:
         logger.error(f"Error handling review updated: {str(e)}")
+
+async def cleanup_user_notifications(user_id: str, old_tier: str, new_tier: str, db: Session):
+    """
+    Clean up notification subscriptions when user subscription is downgraded.
+    This function calls the notification cleanup endpoint internally.
+    """
+    try:
+        import httpx
+        
+        # Determine cleanup reason
+        cleanup_reason = "downgrade"
+        if new_tier in ['free', 'basic']:
+            cleanup_reason = "downgrade"
+        elif old_tier in ['free', 'basic']:
+            cleanup_reason = "expiry"
+        
+        # Prepare cleanup data
+        cleanup_data = {
+            "user_id": user_id,
+            "old_subscription_tier": old_tier,
+            "new_subscription_tier": new_tier,
+            "cleanup_reason": cleanup_reason
+        }
+        
+        # Call the notification cleanup endpoint internally
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "http://localhost:8000/api/notifications/cleanup-subscriptions",
+                json=cleanup_data,
+                timeout=30.0
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                logger.info(f"Notification cleanup completed for user {user_id}: {result.get('deleted_subscriptions', 0)} subscriptions removed")
+            else:
+                logger.error(f"Failed to cleanup notifications: {response.status_code} - {response.text}")
+                
+    except Exception as e:
+        logger.error(f"Error cleaning up notifications for user {user_id}: {str(e)}")
+        # Don't raise the exception - we don't want cleanup failures to break webhook processing
 
 @router.get("/stripe/webhook/test")
 async def test_webhook_endpoint():

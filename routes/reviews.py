@@ -310,6 +310,14 @@ async def create_review(
             db.commit()
             db.refresh(review)
             logger.info(f"Review committed successfully: {review.id}")
+            
+            # Trigger notification system for new review
+            try:
+                await trigger_review_notifications(review, freight_forwarder, db)
+            except Exception as e:
+                # Don't fail the review creation if notifications fail
+                logger.error(f"Failed to trigger notifications for review {review.id}: {str(e)}")
+                
         except Exception as e:
             logger.error(f"Error committing review: {e}")
             db.rollback()
@@ -1006,4 +1014,43 @@ async def get_user_reviews_for_company(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve user reviews for company: {str(e)}"
-        ) 
+        )
+
+async def trigger_review_notifications(review: Review, freight_forwarder: FreightForwarder, db: Session):
+    """
+    Trigger email notifications for a new review submission.
+    This function calls the notification endpoint internally.
+    """
+    try:
+        import httpx
+        
+        # Prepare notification data
+        notification_data = {
+            "review_id": str(review.id),
+            "freight_forwarder_id": str(review.freight_forwarder_id),
+            "freight_forwarder_name": freight_forwarder.name,
+            "country": review.country or "",
+            "city": review.city or "",
+            "reviewer_name": "Anonymous User" if review.is_anonymous else (review.user.full_name if review.user else "Anonymous User"),
+            "rating": float(review.aggregate_rating or 0),
+            "review_text": "Review submitted",  # We don't store full review text in the main review table
+            "created_at": review.created_at.isoformat()
+        }
+        
+        # Call the notification endpoint internally
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "http://localhost:8000/api/notifications/trigger-review-notification",
+                json=notification_data,
+                timeout=30.0
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                logger.info(f"Notifications triggered successfully for review {review.id}: {result.get('notifications_sent', 0)} emails sent")
+            else:
+                logger.error(f"Failed to trigger notifications: {response.status_code} - {response.text}")
+                
+    except Exception as e:
+        logger.error(f"Error triggering notifications for review {review.id}: {str(e)}")
+        # Don't raise the exception - we don't want notification failures to break review creation 

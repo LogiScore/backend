@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class EmailService:
     def __init__(self):
         self.api_key = os.getenv('SENDGRID_API_KEY')
-        self.from_email = os.getenv('FROM_EMAIL', 'noreply@logiscore.com')
+        self.from_email = os.getenv('FROM_EMAIL', 'noreply@logiscore.net')
         self.from_name = os.getenv('FROM_NAME', 'LogiScore')
         
         # Enhanced logging for configuration
@@ -1517,6 +1517,316 @@ class EmailService:
         except Exception as e:
             logger.error(f"Error sending subscription expired notification to {user_id}: {str(e)}")
             logger.info(f"FALLBACK: Subscription expired notification would be sent to user {user_id}")
+            return True  # Return True for fallback mode
+
+    async def send_review_notification(self, to_email: str, user_name: str, review_data: dict, subscription_type: str) -> bool:
+        """Send new review notification email"""
+        try:
+            if not self.api_key:
+                # Fallback: log the notification to console for development
+                logger.info(f"FALLBACK: Review notification for {to_email}: New review for {review_data['freight_forwarder_name']}")
+                return True
+            
+            # Create email subject
+            location = f"{review_data['city']}, {review_data['country']}" if review_data['city'] else review_data['country']
+            subject = f"New review for {review_data['freight_forwarder_name']} in {location}"
+            
+            # Create subscription type description
+            subscription_desc = {
+                'company': f"for {review_data['freight_forwarder_name']}",
+                'country': f"in {review_data['country']}",
+                'city': f"in {location}",
+                'general': "matching your subscription"
+            }.get(subscription_type, "matching your subscription")
+            
+            # Format rating stars
+            rating_stars = "★" * int(review_data['rating']) + "☆" * (5 - int(review_data['rating']))
+            
+            # Truncate review text if too long
+            review_text = review_data['review_text']
+            if len(review_text) > 200:
+                review_text = review_text[:200] + "..."
+            
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>{subject}</title>
+                <style>
+                    body {{
+                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                        line-height: 1.6;
+                        color: #333;
+                        max-width: 600px;
+                        margin: 0 auto;
+                        padding: 20px;
+                        background-color: #f4f4f4;
+                    }}
+                    .container {{
+                        background-color: white;
+                        padding: 30px;
+                        border-radius: 10px;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                    }}
+                    .header {{
+                        text-align: center;
+                        border-bottom: 3px solid #2c5aa0;
+                        padding-bottom: 20px;
+                        margin-bottom: 30px;
+                    }}
+                    .logo {{
+                        font-size: 28px;
+                        font-weight: bold;
+                        color: #2c5aa0;
+                        margin-bottom: 10px;
+                    }}
+                    .review-card {{
+                        background-color: #f8f9fa;
+                        border-left: 4px solid #2c5aa0;
+                        padding: 20px;
+                        margin: 20px 0;
+                        border-radius: 5px;
+                    }}
+                    .company-name {{
+                        font-size: 20px;
+                        font-weight: bold;
+                        color: #2c5aa0;
+                        margin-bottom: 10px;
+                    }}
+                    .rating {{
+                        color: #ffc107;
+                        font-size: 18px;
+                        margin: 10px 0;
+                    }}
+                    .review-text {{
+                        font-style: italic;
+                        margin: 15px 0;
+                        padding: 15px;
+                        background-color: white;
+                        border-radius: 5px;
+                        border: 1px solid #e9ecef;
+                    }}
+                    .reviewer-info {{
+                        color: #666;
+                        font-size: 14px;
+                        margin-top: 10px;
+                    }}
+                    .unsubscribe {{
+                        text-align: center;
+                        margin-top: 30px;
+                        padding-top: 20px;
+                        border-top: 1px solid #e9ecef;
+                        font-size: 12px;
+                        color: #666;
+                    }}
+                    .unsubscribe a {{
+                        color: #2c5aa0;
+                        text-decoration: none;
+                    }}
+                    .footer {{
+                        text-align: center;
+                        margin-top: 30px;
+                        padding-top: 20px;
+                        border-top: 1px solid #e9ecef;
+                        font-size: 12px;
+                        color: #666;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <div class="logo">LogiScore</div>
+                        <h2>New Review Notification</h2>
+                    </div>
+                    
+                    <p>Hello {user_name},</p>
+                    
+                    <p>A new review has been posted {subscription_desc} that matches your notification subscription.</p>
+                    
+                    <div class="review-card">
+                        <div class="company-name">{review_data['freight_forwarder_name']}</div>
+                        <div class="rating">{rating_stars} ({review_data['rating']}/5)</div>
+                        <div class="review-text">"{review_text}"</div>
+                        <div class="reviewer-info">
+                            <strong>Location:</strong> {location}<br>
+                            <strong>Reviewer:</strong> {review_data['reviewer_name']}<br>
+                            <strong>Posted:</strong> {review_data['created_at'].strftime('%B %d, %Y at %I:%M %p')}
+                        </div>
+                    </div>
+                    
+                    <p>You can view this review and more on the LogiScore platform.</p>
+                    
+                    <div class="unsubscribe">
+                        <p>You're receiving this because you subscribed to review notifications.</p>
+                        <p><a href="https://logiscore.net/unsubscribe">Unsubscribe from notifications</a></p>
+                    </div>
+                    
+                    <div class="footer">
+                        <p>This is an automated message from LogiScore.</p>
+                        <p>&copy; 2025 LogiScore. All rights reserved.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            # Create SendGrid message
+            message = Mail(
+                from_email=Email(self.from_email, self.from_name),
+                to_emails=To(to_email),
+                subject=subject,
+                html_content=HtmlContent(html_content)
+            )
+            
+            # Send email
+            sg = SendGridAPIClient(self.api_key)
+            
+            # Set EU data residency if needed
+            if os.getenv('SENDGRID_EU_RESIDENCY', 'false').lower() == 'true':
+                sg.set_sendgrid_data_residency("eu")
+            
+            response = sg.send(message)
+            
+            if response.status_code == 202:
+                logger.info(f"Review notification email sent successfully to {to_email}")
+                return True
+            else:
+                logger.error(f"Failed to send review notification email. Status code: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error sending review notification email to {to_email}: {str(e)}")
+            logger.info(f"FALLBACK: Review notification would be sent to {to_email}")
+            return True  # Return True for fallback mode
+
+    async def send_subscription_cleanup_notice(self, to_email: str, user_name: str, cleanup_reason: str, old_tier: str, new_tier: str) -> bool:
+        """Send subscription cleanup notice email"""
+        try:
+            if not self.api_key:
+                # Fallback: log the notification to console for development
+                logger.info(f"FALLBACK: Subscription cleanup notice for {to_email}: {cleanup_reason}")
+                return True
+            
+            # Create email subject
+            subject = "Your notification subscriptions have been removed"
+            
+            # Create reason description
+            reason_desc = {
+                'downgrade': f"your subscription was downgraded from {old_tier} to {new_tier}",
+                'expiry': "your subscription has expired",
+                'cancellation': "your subscription was cancelled"
+            }.get(cleanup_reason, "your subscription status changed")
+            
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>{subject}</title>
+                <style>
+                    body {{
+                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                        line-height: 1.6;
+                        color: #333;
+                        max-width: 600px;
+                        margin: 0 auto;
+                        padding: 20px;
+                        background-color: #f4f4f4;
+                    }}
+                    .container {{
+                        background-color: white;
+                        padding: 30px;
+                        border-radius: 10px;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                    }}
+                    .header {{
+                        text-align: center;
+                        border-bottom: 3px solid #2c5aa0;
+                        padding-bottom: 20px;
+                        margin-bottom: 30px;
+                    }}
+                    .logo {{
+                        font-size: 28px;
+                        font-weight: bold;
+                        color: #2c5aa0;
+                        margin-bottom: 10px;
+                    }}
+                    .notice-box {{
+                        background-color: #fff3cd;
+                        border: 1px solid #ffeaa7;
+                        border-radius: 5px;
+                        padding: 20px;
+                        margin: 20px 0;
+                    }}
+                    .footer {{
+                        text-align: center;
+                        margin-top: 30px;
+                        padding-top: 20px;
+                        border-top: 1px solid #e9ecef;
+                        font-size: 12px;
+                        color: #666;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <div class="logo">LogiScore</div>
+                        <h2>Notification Subscriptions Removed</h2>
+                    </div>
+                    
+                    <p>Hello {user_name},</p>
+                    
+                    <div class="notice-box">
+                        <p><strong>Your review notification subscriptions have been removed</strong></p>
+                        <p>This happened because {reason_desc}.</p>
+                        <p>Review notifications are only available for premium subscription tiers.</p>
+                    </div>
+                    
+                    <p>If you'd like to continue receiving review notifications, you can upgrade your subscription at any time.</p>
+                    
+                    <p>Thank you for using LogiScore!</p>
+                    
+                    <div class="footer">
+                        <p>This is an automated message from LogiScore.</p>
+                        <p>&copy; 2025 LogiScore. All rights reserved.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            # Create SendGrid message
+            message = Mail(
+                from_email=Email(self.from_email, self.from_name),
+                to_emails=To(to_email),
+                subject=subject,
+                html_content=HtmlContent(html_content)
+            )
+            
+            # Send email
+            sg = SendGridAPIClient(self.api_key)
+            
+            # Set EU data residency if needed
+            if os.getenv('SENDGRID_EU_RESIDENCY', 'false').lower() == 'true':
+                sg.set_sendgrid_data_residency("eu")
+            
+            response = sg.send(message)
+            
+            if response.status_code == 202:
+                logger.info(f"Subscription cleanup notice sent successfully to {to_email}")
+                return True
+            else:
+                logger.error(f"Failed to send subscription cleanup notice. Status code: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error sending subscription cleanup notice to {to_email}: {str(e)}")
+            logger.info(f"FALLBACK: Subscription cleanup notice would be sent to {to_email}")
             return True  # Return True for fallback mode
 
 # Create singleton instance

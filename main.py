@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from database.database import get_db, get_engine
 from database.models import Base
 from auth.auth import get_current_user, create_access_token
-from routes import users, freight_forwarders, reviews, search, subscriptions, auth, locations, email, admin, review_subscriptions
+from routes import users, freight_forwarders, reviews, search, subscriptions, auth, locations, email, admin, review_subscriptions, notifications
 
 # Load environment variables
 load_dotenv()
@@ -88,6 +88,7 @@ app.include_router(reviews.router, prefix="/api/reviews", tags=["reviews"])
 app.include_router(search.router, prefix="/api/search", tags=["search"])
 app.include_router(subscriptions.router, prefix="/api/subscriptions", tags=["subscriptions"])
 app.include_router(review_subscriptions.router, prefix="/api/review-subscriptions", tags=["review-subscriptions"])
+app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])  # Notification system endpoints
 app.include_router(locations.router, prefix="/api/locations", tags=["locations"])  # Locations API for frontend integration
 app.include_router(email.router, prefix="/api/email", tags=["email"])  # Email API for sending emails
 app.include_router(admin.router, prefix="/admin", tags=["admin"])  # Admin API for 8x7k9m2p dashboard
@@ -126,6 +127,18 @@ async def fix_dispute_schema():
             return {"error": "Dispute schema fix failed"}
     except Exception as e:
         return {"error": f"Dispute schema fix failed: {str(e)}"}
+
+@app.get("/api/add-notification-indexes")
+async def add_notification_indexes():
+    """Add database indexes for notification system performance"""
+    try:
+        from database.add_notification_indexes import add_notification_indexes
+        if add_notification_indexes():
+            return {"message": "Notification indexes added successfully"}
+        else:
+            return {"error": "Failed to add notification indexes"}
+    except Exception as e:
+        return {"error": f"Notification index creation failed: {str(e)}"}
 
 # Add backward compatibility routes for auth endpoints
 app.include_router(auth.router, prefix="/auth", tags=["auth-compat"])
