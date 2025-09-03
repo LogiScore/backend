@@ -1028,11 +1028,30 @@ async def trigger_review_notifications(review: Review, freight_forwarder: Freigh
         
         # Get category scores for the review
         category_scores = []
-        for category_score in review.category_scores:
-            category_scores.append({
-                'category_name': category_score.category_name,
-                'rating': category_score.rating
-            })
+        try:
+            # Refresh the review object to ensure category_scores are loaded
+            db.refresh(review)
+            logger.info(f"Review {review.id} has {len(review.category_scores)} category scores")
+            
+            for category_score in review.category_scores:
+                category_scores.append({
+                    'category_name': category_score.category_name,
+                    'rating': category_score.rating
+                })
+                logger.info(f"Category: {category_score.category_name}, Rating: {category_score.rating}")
+        except Exception as e:
+            logger.error(f"Error getting category scores for review {review.id}: {str(e)}")
+            # Fallback: query category scores directly
+            from database.models import ReviewCategoryScore
+            category_scores_db = db.query(ReviewCategoryScore).filter(
+                ReviewCategoryScore.review_id == review.id
+            ).all()
+            for category_score in category_scores_db:
+                category_scores.append({
+                    'category_name': category_score.category_name,
+                    'rating': category_score.rating
+                })
+                logger.info(f"Fallback - Category: {category_score.category_name}, Rating: {category_score.rating}")
         
         # Prepare notification data
         notification_data = ReviewNotificationTrigger(
