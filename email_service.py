@@ -1665,11 +1665,7 @@ class EmailService:
             </head>
             <body>
                 <div class="container">
-                    <div class="header">
-                        <div class="logo">LogiScore</div>
-                    </div>
-                    
-                    <p>Hello {user_name},</p>
+                    <p>Dear {user_name},</p>
                     
                     <p>A new review has been posted {subscription_desc} that matches your notification subscription.</p>
                     
