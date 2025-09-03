@@ -168,7 +168,7 @@ class ReviewCategoryScore(Base):
     category_name = Column(String(100), nullable=False)  # Added: human-readable category name
     question_id = Column(String(100), nullable=False)  # Added: specific question identifier
     question_text = Column(Text, nullable=False)  # Added: the actual question text
-    rating = Column(Integer, nullable=False)  # Changed: 0-4 star rating instead of float score
+    rating = Column(Integer, nullable=False)  # 0-5 star rating system
     rating_definition = Column(Text, nullable=False)  # Added: what the rating means
     weight = Column(Numeric(3,2), default=1.0)  # Added: question weight (usually 1.0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

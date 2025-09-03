@@ -140,6 +140,18 @@ async def add_notification_indexes():
     except Exception as e:
         return {"error": f"Notification index creation failed: {str(e)}"}
 
+@app.get("/api/update-review-questions-5-point")
+async def update_review_questions_5_point():
+    """Update review questions table to use proper 5-point rating system"""
+    try:
+        from database.update_review_questions_5_point_system import update_review_questions
+        if update_review_questions():
+            return {"message": "Review questions updated to 5-point system successfully"}
+        else:
+            return {"error": "Failed to update review questions"}
+    except Exception as e:
+        return {"error": f"Review questions update failed: {str(e)}"}
+
 # Add backward compatibility routes for auth endpoints
 app.include_router(auth.router, prefix="/auth", tags=["auth-compat"])
 
