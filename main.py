@@ -150,9 +150,9 @@ async def update_review_questions_5_point(db: Session = Depends(get_db)):
         db.query(ReviewQuestion).delete()
         db.commit()
         
-        # For now, just add a few sample questions to test the system
-        # We can expand this later with all 33 questions
-        sample_questions = [
+        # All 33 questions from LogiScore Review Questions document
+        all_questions = [
+            # 1. Responsiveness (5 questions)
             {
                 "category_id": "responsiveness",
                 "category_name": "Responsiveness",
@@ -163,6 +163,44 @@ async def update_review_questions_5_point(db: Session = Depends(get_db)):
                 }
             },
             {
+                "category_id": "responsiveness",
+                "category_name": "Responsiveness",
+                "question_id": "resp_002",
+                "question_text": "Provides clear estimated response time if immediate resolution is not possible",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Never", "2": "Seldom", "3": "Usually", "4": "Most of the time", "5": "Every time"
+                }
+            },
+            {
+                "category_id": "responsiveness",
+                "category_name": "Responsiveness",
+                "question_id": "resp_003",
+                "question_text": "Responds within 6 hours to rate requests to/from locations within the same region",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Never", "2": "Seldom", "3": "Usually", "4": "Most of the time", "5": "Every time"
+                }
+            },
+            {
+                "category_id": "responsiveness",
+                "category_name": "Responsiveness",
+                "question_id": "resp_004",
+                "question_text": "Responds within 24 hours to rate requests to/from other regions (e.g. Asia to US, US to Europe)",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Never", "2": "Seldom", "3": "Usually", "4": "Most of the time", "5": "Every time"
+                }
+            },
+            {
+                "category_id": "responsiveness",
+                "category_name": "Responsiveness",
+                "question_id": "resp_005",
+                "question_text": "Responds to emergency requests (e.g., urgent shipment delay, customs issues) within 30 minutes",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Never", "2": "Seldom", "3": "Usually", "4": "Most of the time", "5": "Every time"
+                }
+            },
+            
+            # 2. Shipment Management (5 questions)
+            {
                 "category_id": "shipment_management",
                 "category_name": "Shipment Management",
                 "question_id": "ship_001",
@@ -172,6 +210,44 @@ async def update_review_questions_5_point(db: Session = Depends(get_db)):
                 }
             },
             {
+                "category_id": "shipment_management",
+                "category_name": "Shipment Management",
+                "question_id": "ship_002",
+                "question_text": "Sends pre-alerts before vessel ETA",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Never", "2": "Seldom", "3": "Usually", "4": "Most of the time", "5": "Every time"
+                }
+            },
+            {
+                "category_id": "shipment_management",
+                "category_name": "Shipment Management",
+                "question_id": "ship_003",
+                "question_text": "Provides POD (proof of delivery) within 24 hours of delivery",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Never", "2": "Seldom", "3": "Usually", "4": "Most of the time", "5": "Every time"
+                }
+            },
+            {
+                "category_id": "shipment_management",
+                "category_name": "Shipment Management",
+                "question_id": "ship_004",
+                "question_text": "Proactively notifies delays or disruptions",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Never", "2": "Seldom", "3": "Usually", "4": "Most of the time", "5": "Every time"
+                }
+            },
+            {
+                "category_id": "shipment_management",
+                "category_name": "Shipment Management",
+                "question_id": "ship_005",
+                "question_text": "Offers recovery plans in case of delays or missed transshipments",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Never", "2": "Seldom", "3": "Usually", "4": "Most of the time", "5": "Every time"
+                }
+            },
+            
+            # 3. Documentation (4 questions)
+            {
                 "category_id": "documentation",
                 "category_name": "Documentation",
                 "question_id": "doc_001",
@@ -179,11 +255,237 @@ async def update_review_questions_5_point(db: Session = Depends(get_db)):
                 "rating_definitions": {
                     "0": "Not applicable", "1": "Never", "2": "Seldom", "3": "Usually", "4": "Most of the time", "5": "Every time"
                 }
+            },
+            {
+                "category_id": "documentation",
+                "category_name": "Documentation",
+                "question_id": "doc_002",
+                "question_text": "Sends final invoices within 48 hours of shipment completion",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Never", "2": "Seldom", "3": "Usually", "4": "Most of the time", "5": "Every time"
+                }
+            },
+            {
+                "category_id": "documentation",
+                "category_name": "Documentation",
+                "question_id": "doc_003",
+                "question_text": "Ensures documentation is accurate and complete on first submission",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Never", "2": "Seldom", "3": "Usually", "4": "Most of the time", "5": "Every time"
+                }
+            },
+            {
+                "category_id": "documentation",
+                "category_name": "Documentation",
+                "question_id": "doc_004",
+                "question_text": "Final invoice matches quotation (no hidden costs and all calculations and volumes are correct)",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Never", "2": "Seldom", "3": "Usually", "4": "Most of the time", "5": "Every time"
+                }
+            },
+            
+            # 4. Customer Experience (6 questions)
+            {
+                "category_id": "customer_experience",
+                "category_name": "Customer Experience",
+                "question_id": "cust_001",
+                "question_text": "Follows up on pending issues without the need for reminders",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Never", "2": "Seldom", "3": "Usually", "4": "Most of the time", "5": "Every time"
+                }
+            },
+            {
+                "category_id": "customer_experience",
+                "category_name": "Customer Experience",
+                "question_id": "cust_002",
+                "question_text": "Rectifies documentation (shipping documents and invoices/credit notes) within 48 hours",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Never", "2": "Seldom", "3": "Usually", "4": "Most of the time", "5": "Every time"
+                }
+            },
+            {
+                "category_id": "customer_experience",
+                "category_name": "Customer Experience",
+                "question_id": "cust_003",
+                "question_text": "Provides named contact person(s) for operations and customer service",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Never", "2": "Seldom", "3": "Usually", "4": "Most of the time", "5": "Every time"
+                }
+            },
+            {
+                "category_id": "customer_experience",
+                "category_name": "Customer Experience",
+                "question_id": "cust_004",
+                "question_text": "Offers single point of contact for issue escalation",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Never", "2": "Seldom", "3": "Usually", "4": "Most of the time", "5": "Every time"
+                }
+            },
+            {
+                "category_id": "customer_experience",
+                "category_name": "Customer Experience",
+                "question_id": "cust_005",
+                "question_text": "Replies in professional tone, avoids jargon unless relevant",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Never", "2": "Seldom", "3": "Usually", "4": "Most of the time", "5": "Every time"
+                }
+            },
+            {
+                "category_id": "customer_experience",
+                "category_name": "Customer Experience",
+                "question_id": "cust_006",
+                "question_text": "Customer Service and Operations have vertical specific knowledge (e.g. Chemicals, Pharma, Hightech)",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "None", "2": "Some", "3": "Aware but not knowledgable", "4": "Knowledgable", "5": "Very knowledgable"
+                }
+            },
+            
+            # 5. Technology Process (4 questions)
+            {
+                "category_id": "technology_process",
+                "category_name": "Technology Process",
+                "question_id": "tech_001",
+                "question_text": "Offers online track-and-trace",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Not available", "2": "Only via phone, messaging or email", "3": "Provided via the website, however data doesn't seem dynamic nor current", "4": "Provided via the website and data seems dynamic and current", "5": "Provided via web or mobile app, data is dynamic and current, able to schedule reports and triggered by milestones"
+                }
+            },
+            {
+                "category_id": "technology_process",
+                "category_name": "Technology Process",
+                "question_id": "tech_002",
+                "question_text": "Has an online document portal to access shipment documents and invoices",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Not available", "2": "Limited availability - only for selected customers", "3": "Basic availability - documents are not current or complete", "4": "On demand access - documents are available on scheduled basis", "5": "Available via web or mobile app on demand, with download and notification options"
+                }
+            },
+            {
+                "category_id": "technology_process",
+                "category_name": "Technology Process",
+                "question_id": "tech_003",
+                "question_text": "Integrates with customer systems (e.g., EDI/API) where required",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Not available", "2": "Limited availability - only for selected customers", "3": "Available however Forwarder lacks experience; project management and frequent technical issues", "4": "Standard capability - available and able to implement effortlessly", "5": "Advanced integration capabilities offering mature, flexible and secure integration services to a variety of ERP/TMS/WMS systems"
+                }
+            },
+            {
+                "category_id": "technology_process",
+                "category_name": "Technology Process",
+                "question_id": "tech_004",
+                "question_text": "Able to provides regular reporting (e.g., weekly shipment report, KPI report)",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Not available", "2": "Reporting is manual", "3": "Limited available - only select customers", "4": "Standardized access for all customers. Available and setup either by provider or via a web portal.", "5": "Advances, customizable reporting via interactive dashboards on the web or mobile devices with advances analytical functions"
+                }
+            },
+            
+            # 6. Reliability & Execution (6 questions)
+            {
+                "category_id": "reliability_execution",
+                "category_name": "Reliability & Execution",
+                "question_id": "rel_001",
+                "question_text": "On-time pickup",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Seldom", "2": "Occasionally", "3": "Usually", "4": "Often", "5": "Always"
+                }
+            },
+            {
+                "category_id": "reliability_execution",
+                "category_name": "Reliability & Execution",
+                "question_id": "rel_002",
+                "question_text": "Shipped as promised",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Seldom", "2": "Occasionally", "3": "Usually", "4": "Often", "5": "Always"
+                }
+            },
+            {
+                "category_id": "reliability_execution",
+                "category_name": "Reliability & Execution",
+                "question_id": "rel_003",
+                "question_text": "On-time delivery",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Seldom", "2": "Occasionally", "3": "Usually", "4": "Often", "5": "Always"
+                }
+            },
+            {
+                "category_id": "reliability_execution",
+                "category_name": "Reliability & Execution",
+                "question_id": "rel_004",
+                "question_text": "Compliance with clients' SOP",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Does not define SOP's and has no quality system (ISO 9001)", "2": "Follows quality system, SOP's for large customers", "3": "Defines and usually follows", "4": "Defines and follows most of the time", "5": "Always follows clients' SOP"
+                }
+            },
+            {
+                "category_id": "reliability_execution",
+                "category_name": "Reliability & Execution",
+                "question_id": "rel_005",
+                "question_text": "Customs declaration errors",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Very often", "2": "Frequent errors", "3": "Occasional errors", "4": "Seldom errors", "5": "No errors"
+                }
+            },
+            {
+                "category_id": "reliability_execution",
+                "category_name": "Reliability & Execution",
+                "question_id": "rel_006",
+                "question_text": "Claims ratio (number of claims / total shipments)",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Often", "2": "Regularly", "3": "Occasionally", "4": "Rarely", "5": "Never"
+                }
+            },
+            
+            # 7. Proactivity & Insight (3 questions)
+            {
+                "category_id": "proactivity_insight",
+                "category_name": "Proactivity & Insight",
+                "question_id": "pro_001",
+                "question_text": "Provides trends relating to rates, capacities, carriers, customs and geopolitical issues that might impact global trade and the client and mitigation options the client could consider",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Not able to provide any information", "2": "Provides some information when requested", "3": "Provides detailed updates when requested", "4": "Proactively provides regular periodic updates", "5": "Proactive and advisory - acts as a trusted advisor that actively monitors and proactively updates and recommendations"
+                }
+            },
+            {
+                "category_id": "proactivity_insight",
+                "category_name": "Proactivity & Insight",
+                "question_id": "pro_002",
+                "question_text": "Notifies customer of upcoming GRI or BAF changes in advance and mitigation options",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Not able to provide any information", "2": "Provides some information when requested", "3": "Provides detailed updates when requested", "4": "Proactively provides regular periodic updates", "5": "Proactive and advisory - acts as a trusted advisor that actively monitors and proactively updates and recommendations"
+                }
+            },
+            {
+                "category_id": "proactivity_insight",
+                "category_name": "Proactivity & Insight",
+                "question_id": "pro_003",
+                "question_text": "Provides suggestions for consolidation, better routings, or mode shifts",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Not able to provide any information", "2": "Provides some information when requested", "3": "Provides detailed updates when requested", "4": "Proactively provides regular periodic updates", "5": "Proactive and advisory - acts as a trusted advisor that actively monitors and proactively updates and recommendations"
+                }
+            },
+            
+            # 8. After Hours Support (2 questions)
+            {
+                "category_id": "after_hours_support",
+                "category_name": "After Hours Support",
+                "question_id": "after_001",
+                "question_text": "Has 24/7 support or provides emergency contact for after-hours escalation",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Not available", "2": "Helpdesk/control tower only responds during working hours", "3": "Provides a helpdesk/control tower however responds only after 2-4 hours", "4": "Provides a helpdesk/control tower that responds within 1-2 hours", "5": "Provides 24/7 helpdesk/control tower"
+                }
+            },
+            {
+                "category_id": "after_hours_support",
+                "category_name": "After Hours Support",
+                "question_id": "after_002",
+                "question_text": "Weekend or holiday contact provided in advance for critical shipments",
+                "rating_definitions": {
+                    "0": "Not applicable", "1": "Not available", "2": "No contact available on weekends or holidays", "3": "Contact responds within 2-4 hours", "4": "Contact responds within 1-2 hours", "5": "Provides 24/7 contact"
+                }
             }
         ]
         
-        # Insert sample questions
-        for question_data in sample_questions:
+        # Insert all questions
+        for question_data in all_questions:
             question = ReviewQuestion(
                 category_id=question_data["category_id"],
                 category_name=question_data["category_name"],
@@ -197,9 +499,20 @@ async def update_review_questions_5_point(db: Session = Depends(get_db)):
         db.commit()
         
         return {
-            "message": "Review questions updated to 5-point system successfully",
-            "questions_added": len(sample_questions),
-            "note": "Sample questions added - full 33 questions can be added later"
+            "message": "All 33 review questions updated to 5-point system successfully",
+            "questions_added": len(all_questions),
+            "categories": [
+                "Responsiveness (5 questions)",
+                "Shipment Management (5 questions)", 
+                "Documentation (4 questions)",
+                "Customer Experience (6 questions)",
+                "Technology Process (4 questions)",
+                "Reliability & Execution (6 questions)",
+                "Proactivity & Insight (3 questions)",
+                "After Hours Support (2 questions)"
+            ],
+            "total_categories": 8,
+            "rating_scale": "0-5 (5-point system)"
         }
         
     except Exception as e:
