@@ -309,7 +309,10 @@ class EmailService:
             # Build category scores HTML
             category_scores_html = ""
             for score in category_scores:
-                stars = "⭐" * score['rating']
+                # Create 5-star scale: filled stars + empty stars
+                filled_stars = "⭐" * score['rating']
+                empty_stars = "☆" * (5 - score['rating'])
+                stars = filled_stars + empty_stars
                 category_scores_html += f"""
                 <tr>
                     <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">
@@ -318,7 +321,7 @@ class EmailService:
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #dee2e6; text-align: center;">
                         <span style="font-size: 18px;">{stars}</span><br>
-                        <span style="color: #6c757d; font-size: 12px;">{score['rating_definition']}</span>
+                        <span style="color: #6c757d; font-size: 12px;">{score['rating']}/5 - {score['rating_definition']}</span>
                     </td>
                 </tr>
                 """
