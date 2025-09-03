@@ -29,6 +29,7 @@ class ReviewNotificationTrigger(BaseModel):
     rating: float
     review_text: str
     created_at: datetime
+    category_scores: Optional[List[dict]] = []
 
 class SubscriptionCleanupRequest(BaseModel):
     user_id: str

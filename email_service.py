@@ -1547,6 +1547,14 @@ class EmailService:
             if len(review_text) > 200:
                 review_text = review_text[:200] + "..."
             
+            # Get category scores for the review
+            category_scores_html = ""
+            if 'category_scores' in review_data and review_data['category_scores']:
+                category_scores_html = "<div class='category-scores'><h4>Category Breakdown:</h4><ul>"
+                for category in review_data['category_scores']:
+                    category_scores_html += f"<li><strong>{category['category_name']}:</strong> {category['rating']}/5</li>"
+                category_scores_html += "</ul></div>"
+            
             html_content = f"""
             <!DOCTYPE html>
             <html>
@@ -1625,6 +1633,26 @@ class EmailService:
                         color: #2c5aa0;
                         text-decoration: none;
                     }}
+                    .category-scores {{
+                        margin-top: 15px;
+                        padding: 15px;
+                        background-color: #f8f9fa;
+                        border-radius: 5px;
+                        border: 1px solid #e9ecef;
+                    }}
+                    .category-scores h4 {{
+                        margin: 0 0 10px 0;
+                        color: #2c5aa0;
+                        font-size: 16px;
+                    }}
+                    .category-scores ul {{
+                        margin: 0;
+                        padding-left: 20px;
+                    }}
+                    .category-scores li {{
+                        margin: 5px 0;
+                        color: #555;
+                    }}
                     .footer {{
                         text-align: center;
                         margin-top: 30px;
@@ -1639,7 +1667,6 @@ class EmailService:
                 <div class="container">
                     <div class="header">
                         <div class="logo">LogiScore</div>
-                        <h2>New Review Notification</h2>
                     </div>
                     
                     <p>Hello {user_name},</p>
@@ -1649,12 +1676,7 @@ class EmailService:
                     <div class="review-card">
                         <div class="company-name">{review_data['freight_forwarder_name']}</div>
                         <div class="rating">{rating_stars} ({review_data['rating']}/5)</div>
-                        <div class="review-text">"{review_text}"</div>
-                        <div class="reviewer-info">
-                            <strong>Location:</strong> {location}<br>
-                            <strong>Reviewer:</strong> {review_data['reviewer_name']}<br>
-                            <strong>Posted:</strong> {review_data['created_at'].strftime('%B %d, %Y at %I:%M %p')}
-                        </div>
+                        {category_scores_html}
                     </div>
                     
                     <p>You can view this review and more on the LogiScore platform.</p>

@@ -1026,6 +1026,14 @@ async def trigger_review_notifications(review: Review, freight_forwarder: Freigh
         from routes.notifications import ReviewNotificationTrigger
         from datetime import datetime
         
+        # Get category scores for the review
+        category_scores = []
+        for category_score in review.category_scores:
+            category_scores.append({
+                'category_name': category_score.category_name,
+                'rating': category_score.rating
+            })
+        
         # Prepare notification data
         notification_data = ReviewNotificationTrigger(
             review_id=str(review.id),
@@ -1038,6 +1046,9 @@ async def trigger_review_notifications(review: Review, freight_forwarder: Freigh
             review_text="Review submitted",  # We don't store full review text in the main review table
             created_at=review.created_at
         )
+        
+        # Add category scores to the notification data
+        notification_data.category_scores = category_scores
         
         # Call the notification function directly
         result = await trigger_review_notification(notification_data, db)
