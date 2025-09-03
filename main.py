@@ -145,17 +145,107 @@ async def update_review_questions_5_point():
     """Update review questions table to use proper 5-point rating system"""
     try:
         from database.update_review_questions_5_point_system import update_review_questions
-        if update_review_questions():
+        result = update_review_questions()
+        if result:
             return {"message": "Review questions updated to 5-point system successfully"}
         else:
-            return {"error": "Failed to update review questions"}
+            return {"error": "Failed to update review questions - check logs for details"}
     except Exception as e:
-        return {"error": f"Review questions update failed: {str(e)}"}
+        import traceback
+        error_details = traceback.format_exc()
+        return {"error": f"Review questions update failed: {str(e)}", "details": error_details}
 
 @app.get("/api/test-endpoint")
 async def test_endpoint():
     """Test endpoint to verify deployment is working"""
     return {"message": "Backend is working", "status": "ok"}
+
+@app.get("/api/update-review-questions-simple")
+async def update_review_questions_simple():
+    """Simple version of review questions update - direct database approach"""
+    try:
+        from sqlalchemy.orm import Session
+        from database.database import get_db
+        from database.models import ReviewQuestion
+        import json
+        
+        # Get database session
+        db = next(get_db())
+        
+        # Clear existing questions
+        db.query(ReviewQuestion).delete()
+        db.commit()
+        
+        # Sample questions for testing (first 3 questions)
+        sample_questions = [
+            {
+                "category_id": "responsiveness",
+                "category_name": "Responsiveness",
+                "question_id": "resp_001",
+                "question_text": "Acknowledges receipt of requests (for quotation or information) within 30 minutes (even if full response comes later)",
+                "rating_definitions": {
+                    "0": "Not applicable",
+                    "1": "Never",
+                    "2": "Seldom",
+                    "3": "Usually",
+                    "4": "Most of the time",
+                    "5": "Every time"
+                }
+            },
+            {
+                "category_id": "responsiveness",
+                "category_name": "Responsiveness",
+                "question_id": "resp_002",
+                "question_text": "Provides clear estimated response time if immediate resolution is not possible",
+                "rating_definitions": {
+                    "0": "Not applicable",
+                    "1": "Never",
+                    "2": "Seldom",
+                    "3": "Usually",
+                    "4": "Most of the time",
+                    "5": "Every time"
+                }
+            },
+            {
+                "category_id": "responsiveness",
+                "category_name": "Responsiveness",
+                "question_id": "resp_003",
+                "question_text": "Responds within 6 hours to rate requests to/from locations within the same region",
+                "rating_definitions": {
+                    "0": "Not applicable",
+                    "1": "Never",
+                    "2": "Seldom",
+                    "3": "Usually",
+                    "4": "Most of the time",
+                    "5": "Every time"
+                }
+            }
+        ]
+        
+        # Insert sample questions
+        for question_data in sample_questions:
+            question = ReviewQuestion(
+                category_id=question_data["category_id"],
+                category_name=question_data["category_name"],
+                question_id=question_data["question_id"],
+                question_text=question_data["question_text"],
+                rating_definitions=question_data["rating_definitions"],
+                is_active=True
+            )
+            db.add(question)
+        
+        db.commit()
+        
+        return {
+            "message": "Sample review questions updated successfully",
+            "questions_added": len(sample_questions),
+            "note": "This is a simplified version with 3 sample questions"
+        }
+        
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        return {"error": f"Simple update failed: {str(e)}", "details": error_details}
 
 # Add backward compatibility routes for auth endpoints
 app.include_router(auth.router, prefix="/auth", tags=["auth-compat"])
