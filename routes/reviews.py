@@ -1039,14 +1039,16 @@ async def trigger_review_notifications(review: Review, freight_forwarder: Freigh
             ReviewCategoryScore.review_id == review.id
         ).all()
         
-        # Format category scores for notification (same format as thank you email)
+        # Format category scores for notification (include question text for better email formatting)
         category_scores = []
         for score in category_scores_db:
             category_scores.append({
                 'category_name': score.category_name,
-                'rating': score.rating
+                'question_text': score.question_text,
+                'rating': score.rating,
+                'rating_definition': score.rating_definition
             })
-            logger.info(f"Category: {score.category_name}, Rating: {score.rating}")
+            logger.info(f"Category: {score.category_name}, Question: {score.question_text}, Rating: {score.rating}")
         
         logger.info(f"Found {len(category_scores)} category scores for review {review.id}")
         

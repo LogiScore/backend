@@ -1542,20 +1542,25 @@ class EmailService:
                 'general': "matching your subscription"
             }.get(subscription_type, "matching your subscription")
             
-            # Format rating stars
-            rating_stars = "★" * int(review_data['rating']) + "☆" * (5 - int(review_data['rating']))
+            # Format rating stars and round to 1 decimal place
+            rating_value = round(float(review_data['rating']), 1)
+            rating_stars = "★" * int(rating_value) + "☆" * (5 - int(rating_value))
             
             # Truncate review text if too long
             review_text = review_data['review_text']
             if len(review_text) > 200:
                 review_text = review_text[:200] + "..."
             
-            # Get category scores for the review
+            # Get category scores for the review - show individual questions
             category_scores_html = ""
             if 'category_scores' in review_data and review_data['category_scores']:
                 category_scores_html = "<div class='category-scores'><h4>Category Breakdown:</h4><ul>"
                 for category in review_data['category_scores']:
-                    category_scores_html += f"<li><strong>{category['category_name']}:</strong> {category['rating']}/5</li>"
+                    # Show question text instead of repeating category names
+                    question_text = category.get('question_text', 'Question')
+                    rating_def = category.get('rating_definition', '')
+                    rating_def_text = f" - {rating_def}" if rating_def else ""
+                    category_scores_html += f"<li><strong>{question_text}:</strong> {category['rating']}/5{rating_def_text}</li>"
                 category_scores_html += "</ul></div>"
             
             html_content = f"""
@@ -1674,7 +1679,7 @@ class EmailService:
                     
                     <div class="review-card">
                         <div class="company-name">{review_data['freight_forwarder_name']}</div>
-                        <div class="rating">{rating_stars} ({review_data['rating']}/5)</div>
+                        <div class="rating">{rating_stars} ({rating_value}/5)</div>
                         {category_scores_html}
                     </div>
                     
