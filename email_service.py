@@ -1551,17 +1551,36 @@ class EmailService:
             if len(review_text) > 200:
                 review_text = review_text[:200] + "..."
             
-            # Get category scores for the review - show individual questions
+            # Get category scores for the review - group questions by category
             category_scores_html = ""
             if 'category_scores' in review_data and review_data['category_scores']:
-                category_scores_html = "<div class='category-scores'><h4>Category Breakdown:</h4><ul>"
+                category_scores_html = "<div class='category-scores'><h4>Category Breakdown:</h4>"
+                
+                # Group questions by category
+                categories = {}
                 for category in review_data['category_scores']:
-                    # Show question text instead of repeating category names
+                    cat_name = category.get('category_name', 'Other')
+                    if cat_name not in categories:
+                        categories[cat_name] = []
+                    
                     question_text = category.get('question_text', 'Question')
                     rating_def = category.get('rating_definition', '')
                     rating_def_text = f" - {rating_def}" if rating_def else ""
-                    category_scores_html += f"<li><strong>{question_text}:</strong> {category['rating']}/5{rating_def_text}</li>"
-                category_scores_html += "</ul></div>"
+                    
+                    categories[cat_name].append({
+                        'question': question_text,
+                        'rating': category['rating'],
+                        'definition': rating_def_text
+                    })
+                
+                # Build HTML for each category
+                for cat_name, questions in categories.items():
+                    category_scores_html += f"<div class='category-group'><h5>{cat_name}:</h5><ul>"
+                    for question in questions:
+                        category_scores_html += f"<li><strong>{question['question']}:</strong> {question['rating']}/5{question['definition']}</li>"
+                    category_scores_html += "</ul></div>"
+                
+                category_scores_html += "</div>"
             
             html_content = f"""
             <!DOCTYPE html>
@@ -1660,6 +1679,23 @@ class EmailService:
                     .category-scores li {{
                         margin: 5px 0;
                         color: #555;
+                    }}
+                    .category-group {{
+                        margin-bottom: 20px;
+                        padding: 10px;
+                        background-color: #f8f9fa;
+                        border-radius: 5px;
+                        border-left: 3px solid #2c5aa0;
+                    }}
+                    .category-group h5 {{
+                        margin: 0 0 10px 0;
+                        color: #2c5aa0;
+                        font-size: 16px;
+                        font-weight: bold;
+                    }}
+                    .category-group ul {{
+                        margin: 0;
+                        padding-left: 20px;
                     }}
                     .footer {{
                         text-align: center;
