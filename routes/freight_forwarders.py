@@ -41,18 +41,7 @@ class FreightForwarderResponse(BaseModel):
     class Config:
         from_attributes = True
 
-class BranchResponse(BaseModel):
-    id: str
-    name: str
-    city: Optional[str]
-    country: Optional[str]
-    address: Optional[str]
-    contact_email: Optional[str]
-    contact_phone: Optional[str]
-    is_active: bool
 
-    class Config:
-        from_attributes = True
 
 @router.get("/", response_model=List[FreightForwarderResponse])
 async def get_freight_forwarders(
@@ -435,23 +424,7 @@ async def get_freight_forwarder(
         created_at=freight_forwarder.created_at
     )
 
-@router.get("/branches", response_model=List[dict])
-async def get_branches_by_freight_forwarder_id(
-    freight_forwarder_id: str = Query(..., description="ID of the freight forwarder"),
-    db: Session = Depends(get_db)
-):
-    """Get branches for a specific freight forwarder - returns empty list since branches table is not used"""
-    # Return empty list since branches functionality is not implemented
-    return []
 
-@router.get("/{freight_forwarder_id}/branches", response_model=List[dict])
-async def get_freight_forwarder_branches(
-    freight_forwarder_id: str,
-    db: Session = Depends(get_db)
-):
-    """Get branches for a specific freight forwarder - returns empty list since branches table is not used"""
-    # Return empty list since branches functionality is not implemented
-    return []
 
 @router.post("/", response_model=FreightForwarderResponse, status_code=status.HTTP_201_CREATED)
 async def create_freight_forwarder(

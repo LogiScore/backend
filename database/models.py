@@ -61,7 +61,6 @@ class FreightForwarder(Base):
     # Updated model with hybrid properties for calculated ratings
     
     # Relationships
-    branches = relationship("Branch", back_populates="freight_forwarder")
     reviews = relationship("Review", back_populates="freight_forwarder")
     review_subscriptions = relationship("ReviewSubscription", back_populates="freight_forwarder")
     
@@ -112,23 +111,7 @@ class FreightForwarder(Base):
         # Complex calculation is handled in route handlers
         return {}
 
-class Branch(Base):
-    __tablename__ = "branches"
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    freight_forwarder_id = Column(UUID(as_uuid=True), ForeignKey("freight_forwarders.id"), nullable=False)
-    name = Column(String(255), nullable=False)
-    city = Column(String(100), nullable=True)
-    country = Column(String(100), nullable=True)
-    address = Column(Text, nullable=True)
-    contact_email = Column(String(255), nullable=True)
-    contact_phone = Column(String(50), nullable=True)
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    
-    # Relationships
-    freight_forwarder = relationship("FreightForwarder", back_populates="branches")
+
 
 class Review(Base):
     __tablename__ = "reviews"

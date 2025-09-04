@@ -123,7 +123,8 @@ async def trigger_review_notification(
                         'reviewer_name': notification_data.reviewer_name,
                         'rating': notification_data.rating,
                         'review_text': notification_data.review_text,
-                        'created_at': notification_data.created_at
+                        'created_at': notification_data.created_at,
+                        'category_scores': notification_data.category_scores
                     },
                     subscription_type=_get_subscription_type(subscription)
                 )

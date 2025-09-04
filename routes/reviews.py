@@ -19,6 +19,13 @@ from pydantic import BaseModel, field_validator
 class QuestionRating(BaseModel):
     question: str
     rating: int
+    
+    @field_validator('rating')
+    @classmethod
+    def validate_rating(cls, v):
+        if v < 0 or v > 5:
+            raise ValueError(f"Question rating must be between 0 and 5, got {v}")
+        return v
 
 class CategoryRating(BaseModel):
     category: str
@@ -150,10 +157,10 @@ async def create_review(
             )
         
         # Validate ratings
-        if review_data.aggregate_rating < 0 or review_data.aggregate_rating > 4:
+        if review_data.aggregate_rating < 0 or review_data.aggregate_rating > 5:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Aggregate rating must be between 0 and 4"
+                detail="Aggregate rating must be between 0 and 5"
             )
         
         # Validate category ratings
@@ -171,10 +178,10 @@ async def create_review(
                 )
             
             for question in category.questions:
-                if question.rating < 0 or question.rating > 4:
+                if question.rating < 0 or question.rating > 5:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Question rating must be between 0 and 4, got {question.rating}"
+                        detail=f"Question rating must be between 0 and 5, got {question.rating}"
                     )
         
         # Create the main review record

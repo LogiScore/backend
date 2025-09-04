@@ -884,7 +884,7 @@ class EmailService:
                         
                         <div class="rating">
                             {'⭐' * int(review_data.get('aggregate_rating', 0))} 
-                            {review_data.get('aggregate_rating', 'N/A')}/4.0
+                            {review_data.get('aggregate_rating', 'N/A')}/5.0
                         </div>
                         
                         <div class="location">
@@ -1097,7 +1097,7 @@ class EmailService:
             html_parts.append(f"""
                 <div class="review-item">
                     <h4>{review.get('freight_forwarder_name', 'Freight Forwarder')}</h4>
-                    <p><strong>Rating:</strong> {'⭐' * int(review.get('aggregate_rating', 0))} {review.get('aggregate_rating', 'N/A')}/4.0</p>
+                    <p><strong>Rating:</strong> {'⭐' * int(review.get('aggregate_rating', 0))} {review.get('aggregate_rating', 'N/A')}/5.0</p>
                     <p><strong>Location:</strong> {review.get('city', 'N/A')}, {review.get('country', 'N/A')}</p>
                     <p><strong>Type:</strong> {review.get('review_type', 'General').title()}</p>
                     <p><strong>Posted:</strong> {review.get('created_at', 'N/A')}</p>

@@ -97,69 +97,7 @@ class DatabaseSetup:
             self.conn.rollback()
             raise
     
-    def create_sample_branches(self):
-        """Create sample branches for major freight forwarders"""
-        try:
-            # Get some major freight forwarders
-            self.cursor.execute("""
-                SELECT id, name FROM freight_forwarders 
-                WHERE name IN ('DHL Supply Chain', 'Kuehne + Nagel', 'DB Schenker', 'CEVA Logistics', 'Bolloré Logistics')
-                LIMIT 5
-            """)
-            
-            forwarders = self.cursor.fetchall()
-            
-            sample_branches = [
-                {
-                    'name': 'Singapore Branch',
-                    'country': 'Singapore',
-                    'city': 'Singapore',
-                    'address': '123 Marina Bay, Singapore 018956',
-                    'contact_email': 'singapore@example.com',
-                    'contact_phone': '+65 6123 4567'
-                },
-                {
-                    'name': 'Hong Kong Branch',
-                    'country': 'Hong Kong',
-                    'city': 'Hong Kong',
-                    'address': '456 Central District, Hong Kong',
-                    'contact_email': 'hongkong@example.com',
-                    'contact_phone': '+852 2345 6789'
-                },
-                {
-                    'name': 'London Branch',
-                    'country': 'United Kingdom',
-                    'city': 'London',
-                    'address': '789 Canary Wharf, London E14 5AB',
-                    'contact_email': 'london@example.com',
-                    'contact_phone': '+44 20 7123 4567'
-                }
-            ]
-            
-            for forwarder in forwarders:
-                for branch_data in sample_branches:
-                    self.cursor.execute("""
-                        INSERT INTO branches (id, freight_forwarder_id, name, country, city, address, contact_email, contact_phone, created_at, updated_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (
-                        str(uuid.uuid4()),
-                        forwarder['id'],
-                        f"{forwarder['name']} - {branch_data['name']}",
-                        branch_data['country'],
-                        branch_data['city'],
-                        branch_data['address'],
-                        branch_data['contact_email'],
-                        branch_data['contact_phone'],
-                        datetime.utcnow(),
-                        datetime.utcnow()
-                    ))
-            
-            self.conn.commit()
-            print("✅ Sample branches created successfully")
-        except Exception as e:
-            print(f"❌ Failed to create sample branches: {e}")
-            self.conn.rollback()
-            raise
+
     
     def create_sample_users(self):
         """Create sample users for testing"""
@@ -210,35 +148,35 @@ class DatabaseSetup:
     def create_sample_reviews(self):
         """Create sample reviews for testing"""
         try:
-            # Get a sample user and branch
+            # Get a sample user and freight forwarder
             self.cursor.execute("SELECT id FROM users WHERE username = 'testuser' LIMIT 1")
             user = self.cursor.fetchone()
             
-            self.cursor.execute("SELECT id, freight_forwarder_id FROM branches LIMIT 3")
-            branches = self.cursor.fetchall()
+            self.cursor.execute("SELECT id FROM freight_forwarders LIMIT 3")
+            forwarders = self.cursor.fetchall()
             
-            if not user or not branches:
-                print("⚠️ No users or branches found for sample reviews")
+            if not user or not forwarders:
+                print("⚠️ No users or freight forwarders found for sample reviews")
                 return
             
             sample_reviews = [
                 {
                     'overall_rating': 5,
                     'responsiveness_rating': 5,
-                    'documentation_rating': 4,
+                    'documentation_rating': 5,
                     'communication_rating': 5,
                     'reliability_rating': 5,
-                    'cost_effectiveness_rating': 4,
+                    'cost_effectiveness_rating': 5,
                     'review_text': 'Excellent service! Very responsive and professional team.',
                     'is_anonymous': False,
                     'is_verified': True
                 },
                 {
-                    'overall_rating': 4,
-                    'responsiveness_rating': 4,
+                    'overall_rating': 5,
+                    'responsiveness_rating': 5,
                     'documentation_rating': 5,
-                    'communication_rating': 4,
-                    'reliability_rating': 4,
+                    'communication_rating': 5,
+                    'reliability_rating': 5,
                     'cost_effectiveness_rating': 3,
                     'review_text': 'Good service overall, but could be more cost-effective.',
                     'is_anonymous': True,
@@ -246,18 +184,17 @@ class DatabaseSetup:
                 }
             ]
             
-            for branch in branches:
+            for forwarder in forwarders:
                 for review_data in sample_reviews:
                     self.cursor.execute("""
-                        INSERT INTO reviews (id, user_id, branch_id, freight_forwarder_id, overall_rating, 
+                        INSERT INTO reviews (id, user_id, freight_forwarder_id, overall_rating, 
                         responsiveness_rating, documentation_rating, communication_rating, reliability_rating, 
                         cost_effectiveness_rating, review_text, is_anonymous, is_verified, created_at, updated_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """, (
                         str(uuid.uuid4()),
                         user['id'],
-                        branch['id'],
-                        branch['freight_forwarder_id'],
+                        forwarder['id'],
                         review_data['overall_rating'],
                         review_data['responsiveness_rating'],
                         review_data['documentation_rating'],
@@ -281,7 +218,7 @@ class DatabaseSetup:
     def verify_setup(self):
         """Verify the database setup by counting records"""
         try:
-            tables = ['users', 'freight_forwarders', 'branches', 'reviews']
+            tables = ['users', 'freight_forwarders', 'reviews']
             
             for table in tables:
                 self.cursor.execute(f"SELECT COUNT(*) as count FROM {table}")
@@ -311,10 +248,6 @@ def main():
         # Load freight forwarders
         print("\n📦 Loading freight forwarders...")
         db_setup.load_freight_forwarders()
-        
-        # Create sample branches
-        print("\n🏢 Creating sample branches...")
-        db_setup.create_sample_branches()
         
         # Create sample users
         print("\n👥 Creating sample users...")
