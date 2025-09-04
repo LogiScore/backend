@@ -140,6 +140,18 @@ async def add_notification_indexes():
     except Exception as e:
         return {"error": f"Notification index creation failed: {str(e)}"}
 
+@app.get("/api/fix-rating-constraint")
+async def fix_rating_constraint():
+    """Fix review_category_scores rating constraint to accept 0-5 range instead of 0-4"""
+    try:
+        from database.fix_rating_constraint import fix_rating_constraint
+        if fix_rating_constraint():
+            return {"message": "Rating constraint updated successfully to accept 0-5 range"}
+        else:
+            return {"error": "Failed to update rating constraint"}
+    except Exception as e:
+        return {"error": f"Rating constraint fix failed: {str(e)}"}
+
 @app.get("/api/update-review-questions-5-point")
 async def update_review_questions_5_point(db: Session = Depends(get_db)):
     """Update review questions table to use proper 5-point rating system"""
