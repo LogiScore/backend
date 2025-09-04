@@ -324,6 +324,14 @@ async def create_review(
             except Exception as e:
                 # Don't fail the review creation if notifications fail
                 logger.error(f"Failed to trigger notifications for review {review.id}: {str(e)}")
+            
+            # Trigger score threshold checks for the freight forwarder
+            try:
+                from services.score_threshold_service import score_threshold_service
+                await score_threshold_service.check_score_thresholds(str(review.freight_forwarder_id), db)
+            except Exception as e:
+                # Don't fail the review creation if score threshold checks fail
+                logger.error(f"Failed to check score thresholds for freight forwarder {review.freight_forwarder_id}: {str(e)}")
                 
         except Exception as e:
             logger.error(f"Error committing review: {e}")

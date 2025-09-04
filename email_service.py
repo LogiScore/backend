@@ -1891,5 +1891,200 @@ class EmailService:
             logger.info(f"FALLBACK: Subscription cleanup notice would be sent to {to_email}")
             return True  # Return True for fallback mode
 
+    async def send_score_threshold_notification(
+        self, 
+        to_email: str, 
+        user_name: str, 
+        freight_forwarder_name: str,
+        current_score: float,
+        threshold_score: float,
+        subscription_expires_at: Optional[datetime] = None
+    ) -> bool:
+        """Send score threshold breach notification email"""
+        try:
+            if not self.api_key:
+                # Fallback: log the notification to console for development
+                logger.info(f"FALLBACK: Score threshold notification for {to_email}: {freight_forwarder_name} score {current_score} below threshold {threshold_score}")
+                return True
+            
+            # Create email message
+            subject = f"LogiScore Alert: {freight_forwarder_name} Score Below Threshold"
+            
+            # Format expiry date
+            expiry_text = ""
+            if subscription_expires_at:
+                expiry_text = f"<p><strong>Your subscription expires:</strong> {subscription_expires_at.strftime('%B %d, %Y')}</p>"
+            
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Score Threshold Alert</title>
+                <style>
+                    body {{
+                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                        line-height: 1.6;
+                        color: #333;
+                        max-width: 600px;
+                        margin: 0 auto;
+                        padding: 20px;
+                        background-color: #f4f4f4;
+                    }}
+                    .container {{
+                        background-color: white;
+                        padding: 30px;
+                        border-radius: 10px;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                    }}
+                    .header {{
+                        text-align: center;
+                        border-bottom: 3px solid #e74c3c;
+                        padding-bottom: 20px;
+                        margin-bottom: 30px;
+                    }}
+                    .logo {{
+                        font-size: 28px;
+                        font-weight: bold;
+                        color: #2c3e50;
+                        margin-bottom: 10px;
+                    }}
+                    .alert-badge {{
+                        background-color: #e74c3c;
+                        color: white;
+                        padding: 8px 16px;
+                        border-radius: 20px;
+                        font-size: 14px;
+                        font-weight: bold;
+                        display: inline-block;
+                        margin-bottom: 20px;
+                    }}
+                    .score-comparison {{
+                        background-color: #f8f9fa;
+                        border-left: 4px solid #e74c3c;
+                        padding: 20px;
+                        margin: 20px 0;
+                        border-radius: 0 5px 5px 0;
+                    }}
+                    .current-score {{
+                        font-size: 24px;
+                        font-weight: bold;
+                        color: #e74c3c;
+                        margin: 10px 0;
+                    }}
+                    .threshold-score {{
+                        font-size: 18px;
+                        color: #666;
+                        margin: 10px 0;
+                    }}
+                    .forwarder-name {{
+                        font-size: 20px;
+                        font-weight: bold;
+                        color: #2c3e50;
+                        margin: 15px 0;
+                    }}
+                    .action-button {{
+                        display: inline-block;
+                        background-color: #3498db;
+                        color: white;
+                        padding: 12px 24px;
+                        text-decoration: none;
+                        border-radius: 5px;
+                        font-weight: bold;
+                        margin: 20px 0;
+                    }}
+                    .footer {{
+                        margin-top: 30px;
+                        padding-top: 20px;
+                        border-top: 1px solid #eee;
+                        font-size: 12px;
+                        color: #666;
+                        text-align: center;
+                    }}
+                    .warning-icon {{
+                        font-size: 48px;
+                        color: #e74c3c;
+                        text-align: center;
+                        margin: 20px 0;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <div class="logo">LogiScore</div>
+                        <div class="alert-badge">SCORE ALERT</div>
+                    </div>
+                    
+                    <div class="warning-icon">⚠️</div>
+                    
+                    <h2>Score Threshold Alert</h2>
+                    
+                    <p>Hello {user_name},</p>
+                    
+                    <p>We're writing to inform you that the aggregated score for one of your monitored freight forwarders has fallen below your specified threshold.</p>
+                    
+                    <div class="score-comparison">
+                        <div class="forwarder-name">{freight_forwarder_name}</div>
+                        <div class="current-score">Current Score: {current_score:.2f}/5.0</div>
+                        <div class="threshold-score">Your Threshold: {threshold_score:.2f}/5.0</div>
+                    </div>
+                    
+                    <p>This means the freight forwarder's performance has declined based on recent reviews. You may want to:</p>
+                    <ul>
+                        <li>Review recent feedback to understand the issues</li>
+                        <li>Contact the freight forwarder to discuss improvements</li>
+                        <li>Consider alternative service providers</li>
+                        <li>Adjust your monitoring threshold if needed</li>
+                    </ul>
+                    
+                    <div style="text-align: center;">
+                        <a href="https://logiscore.net/dashboard" class="action-button">View Dashboard</a>
+                    </div>
+                    
+                    {expiry_text}
+                    
+                    <p>You can manage your score threshold subscriptions in your account settings.</p>
+                    
+                    <div class="footer">
+                        <p>This is an automated notification from LogiScore.</p>
+                        <p>If you no longer wish to receive these alerts, you can unsubscribe from your account settings.</p>
+                        <p>© 2024 LogiScore. All rights reserved.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            # Create SendGrid message
+            message = Mail(
+                from_email=Email(self.from_email, self.from_name),
+                to_emails=To(to_email),
+                subject=subject,
+                html_content=HtmlContent(html_content)
+            )
+            
+            # Send email
+            sg = SendGridAPIClient(self.api_key)
+            
+            # Set EU data residency if needed
+            if os.getenv('SENDGRID_EU_RESIDENCY', 'false').lower() == 'true':
+                sg.set_sendgrid_data_residency("eu")
+            
+            response = sg.send(message)
+            
+            if response.status_code == 202:
+                logger.info(f"Score threshold notification sent successfully to {to_email}")
+                return True
+            else:
+                logger.error(f"Failed to send score threshold notification. Status code: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error sending score threshold notification to {to_email}: {str(e)}")
+            logger.info(f"FALLBACK: Score threshold notification would be sent to {to_email}")
+            return True  # Return True for fallback mode
+
 # Create singleton instance
 email_service = EmailService()

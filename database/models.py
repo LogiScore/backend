@@ -46,6 +46,8 @@ class User(Base):
     reported_disputes = relationship("Dispute", foreign_keys="Dispute.reported_by", back_populates="reporter")
     review_subscriptions = relationship("ReviewSubscription", back_populates="user")
     review_notifications = relationship("ReviewNotification", back_populates="user")
+    score_threshold_subscriptions = relationship("ScoreThresholdSubscription", back_populates="user")
+    score_threshold_notifications = relationship("ScoreThresholdNotification", back_populates="user")
 
 class FreightForwarder(Base):
     __tablename__ = "freight_forwarders"
@@ -63,6 +65,8 @@ class FreightForwarder(Base):
     # Relationships
     reviews = relationship("Review", back_populates="freight_forwarder")
     review_subscriptions = relationship("ReviewSubscription", back_populates="freight_forwarder")
+    score_threshold_subscriptions = relationship("ScoreThresholdSubscription", back_populates="freight_forwarder")
+    score_threshold_notifications = relationship("ScoreThresholdNotification", back_populates="freight_forwarder")
     
     @hybrid_property
     def average_rating(self):
@@ -256,4 +260,43 @@ class ReviewNotification(Base):
     # Relationships
     user = relationship("User", back_populates="review_notifications")
     review = relationship("Review", back_populates="notifications")
-    subscription = relationship("ReviewSubscription", back_populates="notifications") 
+    subscription = relationship("ReviewSubscription", back_populates="notifications")
+
+class ScoreThresholdSubscription(Base):
+    __tablename__ = "score_threshold_subscriptions"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    freight_forwarder_id = Column(UUID(as_uuid=True), ForeignKey("freight_forwarders.id"), nullable=False)
+    threshold_score = Column(Numeric(3,2), nullable=False)  # Score threshold (0-5)
+    notification_frequency = Column(String(20), default='immediate')  # immediate, daily, weekly
+    is_active = Column(Boolean, default=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True)  # When the subscription expires
+    last_notification_sent = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    user = relationship("User", back_populates="score_threshold_subscriptions")
+    freight_forwarder = relationship("FreightForwarder", back_populates="score_threshold_subscriptions")
+    notifications = relationship("ScoreThresholdNotification", back_populates="subscription")
+
+class ScoreThresholdNotification(Base):
+    __tablename__ = "score_threshold_notifications"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    freight_forwarder_id = Column(UUID(as_uuid=True), ForeignKey("freight_forwarders.id"), nullable=False)
+    subscription_id = Column(UUID(as_uuid=True), ForeignKey("score_threshold_subscriptions.id"), nullable=False)
+    previous_score = Column(Numeric(3,2), nullable=False)  # Previous average score
+    current_score = Column(Numeric(3,2), nullable=False)  # Current average score
+    threshold_score = Column(Numeric(3,2), nullable=False)  # Threshold that was crossed
+    notification_type = Column(String(50), default='score_threshold_breach')  # score_threshold_breach, score_recovery
+    is_sent = Column(Boolean, default=False)
+    sent_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    user = relationship("User", back_populates="score_threshold_notifications")
+    freight_forwarder = relationship("FreightForwarder", back_populates="score_threshold_notifications")
+    subscription = relationship("ScoreThresholdSubscription", back_populates="notifications") 
