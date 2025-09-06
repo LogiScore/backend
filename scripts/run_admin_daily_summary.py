@@ -17,6 +17,10 @@ import argparse
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Add the parent directory to the Python path so we can import our modules
 sys.path.append(str(Path(__file__).parent.parent))
@@ -57,6 +61,10 @@ async def main():
             target_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
         
         logger.info(f"Starting admin daily summary for {target_date.date()}")
+        
+        # Debug environment variables
+        logger.info(f"DATABASE_URL: {'Set' if os.getenv('DATABASE_URL') else 'Not set'}")
+        logger.info(f"SENDGRID_API_KEY: {'Set' if os.getenv('SENDGRID_API_KEY') else 'Not set'}")
         
         # Get database session
         db = next(get_db())
