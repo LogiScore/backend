@@ -4,23 +4,22 @@ Migration script to add shipment_reference column to reviews table in production
 """
 import os
 import sys
-from sqlalchemy import create_engine, text
-from sqlalchemy.exc import OperationalError
+from pathlib import Path
+
+# Add the parent directory to the Python path so we can import our modules
+sys.path.append(str(Path(__file__).parent.parent))
+
+from database.database import get_db
+from sqlalchemy import text
 
 def migrate_shipment_reference():
     """Add shipment_reference column to reviews table"""
     
-    # Get database URL from environment
-    database_url = os.getenv("DATABASE_URL")
-    if not database_url:
-        print("❌ DATABASE_URL environment variable not found")
-        return False
-    
     try:
-        # Create engine
-        engine = create_engine(database_url)
+        # Get database session using existing connection
+        db = next(get_db())
         
-        with engine.connect() as conn:
+        try:
             # Check if column already exists
             check_column_query = text("""
                 SELECT column_name 
@@ -29,7 +28,7 @@ def migrate_shipment_reference():
                 AND column_name = 'shipment_reference'
             """)
             
-            result = conn.execute(check_column_query).fetchone()
+            result = db.execute(check_column_query).fetchone()
             
             if result:
                 print("✅ shipment_reference column already exists")
@@ -42,15 +41,15 @@ def migrate_shipment_reference():
                 ADD COLUMN shipment_reference VARCHAR(255)
             """)
             
-            conn.execute(alter_query)
-            conn.commit()
+            db.execute(alter_query)
+            db.commit()
             
             print("✅ Successfully added shipment_reference column to reviews table")
             return True
             
-    except OperationalError as e:
-        print(f"❌ Database error: {e}")
-        return False
+        finally:
+            db.close()
+            
     except Exception as e:
         print(f"❌ Unexpected error: {e}")
         return False
