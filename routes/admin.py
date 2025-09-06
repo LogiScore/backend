@@ -31,6 +31,7 @@ class AdminUser(BaseModel):
     company_name: Optional[str]
     user_type: str
     subscription_tier: str
+    subscription_end_date: Optional[str] = None
     is_verified: bool
     is_active: bool
     created_at: Optional[str] = None
@@ -51,6 +52,7 @@ class AdminUser(BaseModel):
                 'company_name': str(obj.company_name) if obj.company_name else None,
                 'user_type': str(obj.user_type) if obj.user_type else None,
                 'subscription_tier': str(obj.subscription_tier) if obj.subscription_tier else None,
+                'subscription_end_date': obj.subscription_end_date.isoformat() if obj.subscription_end_date else None,
                 'is_verified': bool(obj.is_verified) if obj.is_verified is not None else False,
                 'is_active': bool(obj.is_active) if obj.is_active is not None else True,
                 'created_at': obj.created_at.isoformat() if obj.created_at else None
@@ -571,6 +573,7 @@ async def get_users(
                 company_name=user.company_name,
                 user_type=user.user_type,
                 subscription_tier=user.subscription_tier,
+                subscription_end_date=user.subscription_end_date.isoformat() if user.subscription_end_date else None,
                 is_verified=user.is_verified,
                 is_active=user.is_active,
                 created_at=user.created_at.isoformat() if user.created_at else None
