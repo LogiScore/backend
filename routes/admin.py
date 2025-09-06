@@ -1533,4 +1533,111 @@ async def cron_subscription_expiration_check(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to check subscription expiration: {str(e)}"
+        )
+
+@router.post("/daily-summary")
+async def trigger_daily_summary(
+    admin_user: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+    target_date: Optional[str] = None
+):
+    """Trigger daily summary email generation and sending (admin only)"""
+    try:
+        from services.admin_daily_summary_service import admin_daily_summary_service
+        
+        # Parse target date if provided
+        parsed_date = None
+        if target_date:
+            try:
+                parsed_date = datetime.strptime(target_date, '%Y-%m-%d')
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid date format. Use YYYY-MM-DD format."
+                )
+        
+        logger.info(f"Admin {admin_user.email} triggered daily summary for {parsed_date or 'yesterday'}")
+        
+        # Run the daily summary
+        result = await admin_daily_summary_service.run_daily_summary(db)
+        
+        if result['success']:
+            return {
+                "success": True,
+                "message": "Daily summary generated and sent successfully",
+                "email_sent": result['email_sent'],
+                "summary_stats": {
+                    "new_reviews": result['summary_data']['new_reviews']['count'],
+                    "new_forwarders": result['summary_data']['new_forwarders']['count'],
+                    "new_locations": result['summary_data']['new_review_locations']['count'],
+                    "new_users": result['summary_data']['new_users']['count'],
+                    "new_forwarder_locations": result['summary_data']['new_forwarder_locations']['count']
+                },
+                "generated_at": result['generated_at']
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to generate daily summary: {result.get('error', 'Unknown error')}"
+            )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to trigger daily summary: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to trigger daily summary: {str(e)}"
+        )
+
+@router.post("/cron/daily-summary")
+async def cron_daily_summary(
+    cron_secret: str,
+    db: Session = Depends(get_db)
+):
+    """Public endpoint for external cron services to trigger daily summary"""
+    try:
+        import os
+        
+        # Check if the secret matches the environment variable
+        expected_secret = os.getenv("CRON_SECRET_KEY", "default-secret-change-me")
+        if cron_secret != expected_secret:
+            logger.warning(f"Invalid cron secret attempted: {cron_secret[:10]}...")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid cron secret"
+            )
+        
+        from services.admin_daily_summary_service import admin_daily_summary_service
+        
+        logger.info("External cron triggered daily summary")
+        result = await admin_daily_summary_service.run_daily_summary(db)
+        
+        if result['success']:
+            return {
+                "success": True,
+                "message": "Daily summary completed",
+                "email_sent": result['email_sent'],
+                "summary_stats": {
+                    "new_reviews": result['summary_data']['new_reviews']['count'],
+                    "new_forwarders": result['summary_data']['new_forwarders']['count'],
+                    "new_locations": result['summary_data']['new_review_locations']['count'],
+                    "new_users": result['summary_data']['new_users']['count'],
+                    "new_forwarder_locations": result['summary_data']['new_forwarder_locations']['count']
+                },
+                "generated_at": result['generated_at']
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to generate daily summary: {result.get('error', 'Unknown error')}"
+            )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to run cron daily summary: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to run daily summary: {str(e)}"
         ) 
