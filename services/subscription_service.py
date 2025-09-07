@@ -115,6 +115,9 @@ class SubscriptionService:
             # Update database
             user.subscription_status = 'canceled'
             user.auto_renew_enabled = False
+            # Set subscription end date to current time when canceled
+            from datetime import datetime
+            user.subscription_end_date = datetime.utcnow()
             db.commit()
             
             # Send cancellation email
@@ -145,6 +148,11 @@ class SubscriptionService:
             # Update database
             user.subscription_status = 'active'
             user.auto_renew_enabled = True
+            # Update subscription start date to current time when reactivated
+            from datetime import datetime
+            user.subscription_start_date = datetime.utcnow()
+            # Clear subscription end date when reactivated
+            user.subscription_end_date = None
             db.commit()
             
             return {"message": "Subscription reactivated successfully"}
@@ -320,6 +328,9 @@ class SubscriptionService:
             
             user.subscription_status = 'expired'
             user.subscription_tier = 'free'
+            # Set subscription end date to current time when expired
+            from datetime import datetime
+            user.subscription_end_date = datetime.utcnow()
             db.commit()
             
             return True
