@@ -2086,5 +2086,230 @@ class EmailService:
             logger.info(f"FALLBACK: Score threshold notification would be sent to {to_email}")
             return True  # Return True for fallback mode
 
+    async def send_trial_ending_warning(self, user_id: str, trial_data: dict) -> bool:
+        """Send trial ending warning email (1 day before trial ends)"""
+        try:
+            if not self.api_key:
+                # Fallback: log the notification to console for development
+                logger.info(f"FALLBACK: Trial ending warning for user {user_id}: {trial_data}")
+                return True
+            
+            # Create email message
+            subject = f"⚠️ Your LogiScore trial ends tomorrow - Action required"
+            
+            # Format trial end date
+            trial_end_date = trial_data.get('trial_end_date', '')
+            trial_end_time = ""
+            if trial_end_date:
+                try:
+                    from datetime import datetime
+                    dt = datetime.fromisoformat(trial_end_date.replace('Z', '+00:00'))
+                    trial_end_time = dt.strftime('%I:%M %p UTC')
+                except:
+                    trial_end_time = "end of day"
+            
+            # Build plan features HTML
+            plan_features_html = ""
+            for feature in trial_data.get('plan_features', []):
+                plan_features_html += f"<li>{feature}</li>"
+            
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Your LogiScore Trial Ends Tomorrow</title>
+                <style>
+                    body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }}
+                    .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                    .header {{ background: #007bff; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }}
+                    .content {{ background: #f8f9fa; padding: 30px; border-radius: 0 0 8px 8px; }}
+                    .trial-info {{ background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 4px; margin: 20px 0; }}
+                    .cta-button {{ display: inline-block; background: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; margin: 20px 0; }}
+                    .features {{ background: white; padding: 20px; border-radius: 4px; margin: 20px 0; }}
+                    .footer {{ text-align: center; color: #666; font-size: 12px; margin-top: 30px; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>⚠️ Your LogiScore Trial Ends Tomorrow</h1>
+                    </div>
+                    
+                    <div class="content">
+                        <p>Hi {trial_data.get('user_name', 'User')},</p>
+                        
+                        <p>Your <strong>{trial_data.get('trial_duration', 7)}-day free trial</strong> of LogiScore {trial_data.get('plan_name', 'Subscription')} ends tomorrow at {trial_end_time}.</p>
+                        
+                        <div class="trial-info">
+                            <h3>🕐 Trial Details</h3>
+                            <p><strong>Plan:</strong> {trial_data.get('plan_name', 'Subscription')} - ${trial_data.get('plan_price', 0)}/{trial_data.get('billing_cycle', 'month')}</p>
+                            <p><strong>Trial Ends:</strong> {trial_data.get('trial_end_date', 'N/A')}</p>
+                            <p><strong>Time Remaining:</strong> Less than 24 hours</p>
+                        </div>
+                        
+                        <h3>What happens next?</h3>
+                        <p>If you don't take action, your subscription will automatically convert to a paid plan and you'll be charged <strong>${trial_data.get('plan_price', 0)}</strong> tomorrow.</p>
+                        
+                        <div class="features">
+                            <h3>🚀 Continue enjoying LogiScore benefits:</h3>
+                            <ul>
+                                {plan_features_html}
+                            </ul>
+                        </div>
+                        
+                        <div style="text-align: center;">
+                            <a href="https://logiscore.com/subscribe?plan={trial_data.get('plan_id', 'monthly')}" class="cta-button">Continue Subscription</a>
+                            <br>
+                            <a href="https://logiscore.com/cancel-trial?user_id={user_id}" style="color: #666; text-decoration: none;">Cancel Trial</a>
+                        </div>
+                        
+                        <p><strong>Questions?</strong> Reply to this email or contact our support team.</p>
+                        
+                        <p>Best regards,<br>The LogiScore Team</p>
+                    </div>
+                    
+                    <div class="footer">
+                        <p>This email was sent to {trial_data.get('user_email', 'your email')} because you have an active trial subscription.</p>
+                        <p>LogiScore - Freight Forwarder Review Platform</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            # Create SendGrid message
+            message = Mail(
+                from_email=Email(self.from_email, self.from_name),
+                to_emails=To(trial_data.get('user_email', '')),
+                subject=subject,
+                html_content=HtmlContent(html_content)
+            )
+            
+            # Send email
+            sg = SendGridAPIClient(self.api_key)
+            
+            # Set EU data residency if needed
+            if os.getenv('SENDGRID_EU_RESIDENCY', 'false').lower() == 'true':
+                sg.set_sendgrid_data_residency("eu")
+            
+            response = sg.send(message)
+            
+            if response.status_code == 202:
+                logger.info(f"Trial ending warning sent successfully to {trial_data.get('user_email', '')}")
+                return True
+            else:
+                logger.error(f"Failed to send trial ending warning. Status code: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error sending trial ending warning to {user_id}: {str(e)}")
+            logger.info(f"FALLBACK: Trial ending warning would be sent to user {user_id}")
+            return True  # Return True for fallback mode
+
+    async def send_trial_ended_notification(self, user_id: str, trial_data: dict) -> bool:
+        """Send trial ended notification email"""
+        try:
+            if not self.api_key:
+                # Fallback: log the notification to console for development
+                logger.info(f"FALLBACK: Trial ended notification for user {user_id}: {trial_data}")
+                return True
+            
+            # Create email message
+            subject = "❌ Your LogiScore trial has ended"
+            
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Your LogiScore Trial Has Ended</title>
+                <style>
+                    body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }}
+                    .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                    .header {{ background: #dc3545; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }}
+                    .content {{ background: #f8f9fa; padding: 30px; border-radius: 0 0 8px 8px; }}
+                    .trial-info {{ background: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; border-radius: 4px; margin: 20px 0; }}
+                    .cta-button {{ display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; margin: 20px 0; }}
+                    .footer {{ text-align: center; color: #666; font-size: 12px; margin-top: 30px; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>❌ Your LogiScore Trial Has Ended</h1>
+                    </div>
+                    
+                    <div class="content">
+                        <p>Hi {trial_data.get('user_name', 'User')},</p>
+                        
+                        <p>Your <strong>{trial_data.get('trial_duration', 7)}-day free trial</strong> of LogiScore {trial_data.get('plan_name', 'Subscription')} has ended.</p>
+                        
+                        <div class="trial-info">
+                            <h3>📅 Trial Summary</h3>
+                            <p><strong>Plan:</strong> {trial_data.get('plan_name', 'Subscription')} - ${trial_data.get('plan_price', 0)}/{trial_data.get('billing_cycle', 'month')}</p>
+                            <p><strong>Trial Ended:</strong> {trial_data.get('trial_end_date', 'N/A')}</p>
+                            <p><strong>Status:</strong> Trial completed</p>
+                        </div>
+                        
+                        <h3>What's next?</h3>
+                        <p>Your account has been downgraded to the free tier. You can still:</p>
+                        <ul>
+                            <li>Browse basic freight forwarder information</li>
+                            <li>Submit reviews</li>
+                            <li>View star ratings</li>
+                        </ul>
+                        
+                        <p>To regain full access to LogiScore features, you can subscribe anytime:</p>
+                        
+                        <div style="text-align: center;">
+                            <a href="https://logiscore.com/subscribe?plan={trial_data.get('plan_id', 'monthly')}" class="cta-button">Subscribe Now</a>
+                        </div>
+                        
+                        <p><strong>Questions?</strong> Reply to this email or contact our support team.</p>
+                        
+                        <p>Best regards,<br>The LogiScore Team</p>
+                    </div>
+                    
+                    <div class="footer">
+                        <p>This email was sent to {trial_data.get('user_email', 'your email')} because your trial subscription has ended.</p>
+                        <p>LogiScore - Freight Forwarder Review Platform</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            # Create SendGrid message
+            message = Mail(
+                from_email=Email(self.from_email, self.from_name),
+                to_emails=To(trial_data.get('user_email', '')),
+                subject=subject,
+                html_content=HtmlContent(html_content)
+            )
+            
+            # Send email
+            sg = SendGridAPIClient(self.api_key)
+            
+            # Set EU data residency if needed
+            if os.getenv('SENDGRID_EU_RESIDENCY', 'false').lower() == 'true':
+                sg.set_sendgrid_data_residency("eu")
+            
+            response = sg.send(message)
+            
+            if response.status_code == 202:
+                logger.info(f"Trial ended notification sent successfully to {trial_data.get('user_email', '')}")
+                return True
+            else:
+                logger.error(f"Failed to send trial ended notification. Status code: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error sending trial ended notification to {user_id}: {str(e)}")
+            logger.info(f"FALLBACK: Trial ended notification would be sent to user {user_id}")
+            return True  # Return True for fallback mode
+
 # Create singleton instance
 email_service = EmailService()
