@@ -109,16 +109,14 @@ class SubscriptionService:
             if not user:
                 raise Exception("User not found")
             
-            # Cancel in Stripe - temporarily commented out
-            # stripe_subscription = await self.stripe_service.cancel_subscription(user.stripe_subscription_id)
-            
-            # Update database
+            # Update database directly
             user.subscription_status = 'canceled'
             user.auto_renew_enabled = False
-            # Set subscription end date to current time when canceled
             from datetime import datetime
             user.subscription_end_date = datetime.utcnow()
             db.commit()
+            
+            logger.info(f"Subscription canceled for user {user_id}: status=canceled, end_date={user.subscription_end_date}")
             
             # Send cancellation email
             await self.email_service.send_subscription_cancellation_notification(user_id)
@@ -142,18 +140,15 @@ class SubscriptionService:
             if not user:
                 raise Exception("User not found")
             
-            # Reactivate in Stripe - temporarily commented out
-            # stripe_subscription = await self.stripe_service.reactivate_subscription(user.stripe_subscription_id)
-            
-            # Update database
+            # Update database directly
             user.subscription_status = 'active'
             user.auto_renew_enabled = True
-            # Update subscription start date to current time when reactivated
             from datetime import datetime
             user.subscription_start_date = datetime.utcnow()
-            # Clear subscription end date when reactivated
             user.subscription_end_date = None
             db.commit()
+            
+            logger.info(f"Subscription reactivated for user {user_id}: status=active, start_date={user.subscription_start_date}")
             
             return {"message": "Subscription reactivated successfully"}
             
