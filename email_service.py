@@ -2358,7 +2358,7 @@ class EmailService:
                     </div>
                     
                     <div class="content">
-                        <p>Hi {user.first_name or 'User'},</p>
+                        <p>Hi {user.full_name or user.username or 'User'},</p>
                         
                         <p>We're sorry to see you go! Your LogiScore subscription has been successfully canceled.</p>
                         
@@ -2393,7 +2393,7 @@ class EmailService:
             
             # Create plain text version
             text_content = f"""
-            Hi {user.first_name or 'User'},
+            Hi {user.full_name or user.username or 'User'},
             
             We're sorry to see you go! Your LogiScore subscription has been successfully canceled.
             
