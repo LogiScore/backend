@@ -183,6 +183,25 @@ class StripeService:
         tier_key = f"{user_type}_{tier}"
         return self.STRIPE_PRICE_IDS.get(tier_key)
     
+    async def update_subscription_auto_renewal(self, subscription_id: str, auto_renew: bool) -> Dict[str, Any]:
+        """Update subscription auto-renewal setting"""
+        try:
+            if auto_renew:
+                # Enable auto-renewal by removing cancel_at_period_end
+                return self.stripe.Subscription.modify(
+                    subscription_id,
+                    cancel_at_period_end=False
+                )
+            else:
+                # Disable auto-renewal by setting cancel_at_period_end to True
+                return self.stripe.Subscription.modify(
+                    subscription_id,
+                    cancel_at_period_end=True
+                )
+        except stripe.error.StripeError as e:
+            logger.error(f"Failed to update subscription auto-renewal: {str(e)}")
+            raise Exception(f"Failed to update subscription auto-renewal: {str(e)}")
+    
     async def verify_webhook_signature(self, payload: bytes, sig_header: str, webhook_secret: str) -> Dict[str, Any]:
         """Verify Stripe webhook signature"""
         try:

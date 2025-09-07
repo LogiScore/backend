@@ -49,6 +49,9 @@ class SubscriptionResponse(BaseModel):
 class SubscriptionCancelRequest(BaseModel):
     reason: Optional[str] = None
 
+class AutoRenewalToggleRequest(BaseModel):
+    auto_renew_enabled: bool
+
 @router.post("/create", response_model=SubscriptionResponse)
 async def create_subscription(
     subscription_request: SubscriptionRequest,
@@ -327,4 +330,48 @@ async def get_billing_portal_url(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create billing portal session: {str(e)}"
+        )
+
+@router.post("/toggle-auto-renewal")
+async def toggle_auto_renewal(
+    auto_renew_data: AutoRenewalToggleRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Toggle auto-renewal setting for the user's subscription"""
+    try:
+        # Check if user has an active subscription
+        if not current_user.stripe_subscription_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No active subscription found"
+            )
+        
+        # Update Stripe subscription auto-renewal setting
+        stripe_service = get_stripe_service()
+        stripe_subscription = await stripe_service.update_subscription_auto_renewal(
+            subscription_id=current_user.stripe_subscription_id,
+            auto_renew=auto_renew_data.auto_renew_enabled
+        )
+        
+        # Update database
+        current_user.auto_renew_enabled = auto_renew_data.auto_renew_enabled
+        db.commit()
+        
+        # Return confirmation
+        status_message = "enabled" if auto_renew_data.auto_renew_enabled else "disabled"
+        return {
+            "message": f"Auto-renewal {status_message} successfully",
+            "auto_renew_enabled": auto_renew_data.auto_renew_enabled,
+            "subscription_id": current_user.stripe_subscription_id,
+            "cancel_at_period_end": stripe_subscription.get('cancel_at_period_end', False)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to toggle auto-renewal: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to toggle auto-renewal: {str(e)}"
         ) 
