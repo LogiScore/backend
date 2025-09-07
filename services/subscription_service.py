@@ -114,13 +114,20 @@ class SubscriptionService:
                 raise Exception("User not found")
             
             # Update database directly
+            logger.info(f"Before update - User {user_id}: status={user.subscription_status}, auto_renew={user.auto_renew_enabled}, end_date={user.subscription_end_date}")
+            
             user.subscription_status = 'canceled'
             user.auto_renew_enabled = False
-            from datetime import datetime
             user.subscription_end_date = utc_now()
-            db.commit()
             
-            logger.info(f"Subscription canceled for user {user_id}: status=canceled, end_date={user.subscription_end_date}")
+            logger.info(f"After update - User {user_id}: status={user.subscription_status}, auto_renew={user.auto_renew_enabled}, end_date={user.subscription_end_date}")
+            
+            db.commit()
+            logger.info(f"Database commit successful for user {user_id}")
+            
+            # Verify the update
+            db.refresh(user)
+            logger.info(f"After refresh - User {user_id}: status={user.subscription_status}, auto_renew={user.auto_renew_enabled}, end_date={user.subscription_end_date}")
             
             # Send cancellation email
             await self.email_service.send_subscription_cancellation_notification(user_id)
@@ -147,7 +154,6 @@ class SubscriptionService:
             # Update database directly
             user.subscription_status = 'active'
             user.auto_renew_enabled = True
-            from datetime import datetime
             user.subscription_start_date = utc_now()
             user.subscription_end_date = None
             db.commit()
@@ -234,7 +240,6 @@ class SubscriptionService:
                 
                 # Update subscription end date if duration is provided
                 if duration is not None:
-                    from datetime import datetime, timedelta
                     try:
                         user.subscription_end_date = utc_now() + timedelta(days=duration * 30)  # Approximate months to days
                         user.subscription_start_date = utc_now()
@@ -328,7 +333,6 @@ class SubscriptionService:
             user.subscription_status = 'expired'
             user.subscription_tier = 'free'
             # Set subscription end date to current time when expired
-            from datetime import datetime
             user.subscription_end_date = utc_now()
             db.commit()
             
