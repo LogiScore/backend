@@ -112,9 +112,9 @@ class SubscriptionService:
             # Cancel in Stripe - temporarily commented out
             # stripe_subscription = await self.stripe_service.cancel_subscription(user.stripe_subscription_id)
             
-            # Update database - temporarily commented out until migration
-            # user.subscription_status = 'canceled'
-            # user.auto_renew_enabled = False
+            # Update database
+            user.subscription_status = 'canceled'
+            user.auto_renew_enabled = False
             db.commit()
             
             # Send cancellation email
@@ -339,8 +339,8 @@ class SubscriptionService:
                 return False
             
             user.subscription_tier = 'free'
-            # user.subscription_status = 'expired'  # Temporarily commented out until migration
-            # user.auto_renew_enabled = False  # Temporarily commented out until migration
+            user.subscription_status = 'expired'
+            user.auto_renew_enabled = False
             db.commit()
             
             return True
@@ -440,25 +440,22 @@ class SubscriptionService:
             raise Exception("User not found")
         
         user.subscription_tier = tier
-        # Temporarily commented out until migration
-        # user.subscription_start_date = datetime.utcnow()
+        user.subscription_start_date = datetime.utcnow()
         
         if stripe_subscription:
-            # user.stripe_subscription_id = stripe_subscription.id
-            # user.subscription_status = 'active'
+            user.stripe_subscription_id = stripe_subscription.id
+            user.subscription_status = 'active'
             
-            # if stripe_subscription.get('current_period_end'):
-            #     user.subscription_end_date = datetime.fromtimestamp(
-            #         stripe_subscription.current_period_end
-            #     )
-            # elif trial_days > 0:
-            #     user.subscription_end_date = datetime.utcnow() + timedelta(days=trial_days)
-            #     user.subscription_status = 'trial'
-            pass
+            if stripe_subscription.get('current_period_end'):
+                user.subscription_end_date = datetime.fromtimestamp(
+                    stripe_subscription.current_period_end
+                )
+            elif trial_days > 0:
+                user.subscription_end_date = datetime.utcnow() + timedelta(days=trial_days)
+                user.subscription_status = 'trial'
         else:
             # Free tier
-            # user.subscription_status = 'active'
-            # user.subscription_end_date = None
-            pass
+            user.subscription_status = 'active'
+            user.subscription_end_date = None
         
         db.commit()
