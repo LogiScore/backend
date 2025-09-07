@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
 from database.database import get_db
@@ -6,6 +6,10 @@ from database.models import User
 from services.stripe_service import StripeService
 from email_service import EmailService
 import logging
+
+def utc_now():
+    """Get current UTC datetime with timezone info"""
+    return datetime.now(timezone.utc)
 
 logger = logging.getLogger(__name__)
 
@@ -79,8 +83,8 @@ class SubscriptionService:
             if stripe_subscription:
                 await self.email_service.send_subscription_confirmation(user_id, {
                     'tier': tier,
-                    'start_date': datetime.utcnow(),
-                    'end_date': datetime.utcnow() + timedelta(days=trial_days) if trial_days > 0 else None,
+                    'start_date': utc_now(),
+                    'end_date': utc_now() + timedelta(days=trial_days) if trial_days > 0 else None,
                     'status': 'active'
                 })
             
@@ -113,7 +117,7 @@ class SubscriptionService:
             user.subscription_status = 'canceled'
             user.auto_renew_enabled = False
             from datetime import datetime
-            user.subscription_end_date = datetime.utcnow()
+            user.subscription_end_date = utc_now()
             db.commit()
             
             logger.info(f"Subscription canceled for user {user_id}: status=canceled, end_date={user.subscription_end_date}")
@@ -144,7 +148,7 @@ class SubscriptionService:
             user.subscription_status = 'active'
             user.auto_renew_enabled = True
             from datetime import datetime
-            user.subscription_start_date = datetime.utcnow()
+            user.subscription_start_date = utc_now()
             user.subscription_end_date = None
             db.commit()
             
@@ -232,8 +236,8 @@ class SubscriptionService:
                 if duration is not None:
                     from datetime import datetime, timedelta
                     try:
-                        user.subscription_end_date = datetime.utcnow() + timedelta(days=duration * 30)  # Approximate months to days
-                        user.subscription_start_date = datetime.utcnow()
+                        user.subscription_end_date = utc_now() + timedelta(days=duration * 30)  # Approximate months to days
+                        user.subscription_start_date = utc_now()
                         user.subscription_status = 'active'
                         logger.info(f"Set subscription start date to: {user.subscription_start_date}")
                         logger.info(f"Set subscription end date to: {user.subscription_end_date}")
@@ -291,7 +295,7 @@ class SubscriptionService:
             # Calculate days remaining
             days_remaining = 0
             if user.subscription_end_date:
-                days_remaining = max(0, (user.subscription_end_date - datetime.utcnow()).days)
+                days_remaining = max(0, (user.subscription_end_date - utc_now()).days)
             
             return {
                 'id': str(user.id),
@@ -325,7 +329,7 @@ class SubscriptionService:
             user.subscription_tier = 'free'
             # Set subscription end date to current time when expired
             from datetime import datetime
-            user.subscription_end_date = datetime.utcnow()
+            user.subscription_end_date = utc_now()
             db.commit()
             
             return True
@@ -361,7 +365,7 @@ class SubscriptionService:
             if not db:
                 db = next(get_db())
             
-            target_date = datetime.utcnow() + timedelta(days=days_ahead)
+            target_date = utc_now() + timedelta(days=days_ahead)
             
             # Temporarily commented out until migration
             # expiring_users = db.query(User).filter(
@@ -376,7 +380,7 @@ class SubscriptionService:
                     'email': user.email,
                     'tier': user.subscription_tier,
                     'end_date': None,  # user.subscription_end_date,
-                    'days_remaining': 0  # max(0, (user.subscription_end_date - datetime.utcnow()).days)
+                    'days_remaining': 0  # max(0, (user.subscription_end_date - utc_now()).days)
                 }
                 for user in expiring_users
             ]
@@ -393,7 +397,7 @@ class SubscriptionService:
             
             # Temporarily commented out until migration
             # expired_users = db.query(User).filter(
-            #     User.subscription_end_date < datetime.utcnow(),
+            #     User.subscription_end_date < utc_now(),
             #     User.subscription_status == 'active'
             # ).all()
             expired_users = []  # Empty list until migration
@@ -446,7 +450,7 @@ class SubscriptionService:
             raise Exception("User not found")
         
         user.subscription_tier = tier
-        user.subscription_start_date = datetime.utcnow()
+        user.subscription_start_date = utc_now()
         
         if stripe_subscription:
             user.stripe_subscription_id = stripe_subscription.id
@@ -457,7 +461,7 @@ class SubscriptionService:
                     stripe_subscription.current_period_end
                 )
             elif trial_days > 0:
-                user.subscription_end_date = datetime.utcnow() + timedelta(days=trial_days)
+                user.subscription_end_date = utc_now() + timedelta(days=trial_days)
                 user.subscription_status = 'trial'
         else:
             # Free tier
