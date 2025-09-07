@@ -6,16 +6,28 @@ This guide explains how to deploy the LogiScore trial reminder system on Render.
 
 **Singapore Time (SGT)**: All times are in Singapore Standard Time (UTC+8).
 
+## 🔄 Background Worker vs Cron Job
+
+| Feature | Background Worker | Cron Job |
+|---------|------------------|----------|
+| **Runtime** | Runs continuously 24/7 | Runs only when scheduled |
+| **Cost** | Higher (always running) | Lower (on-demand) |
+| **Use Case** | Real-time processing, queues | Scheduled tasks, periodic jobs |
+| **Perfect For** | Email queues, monitoring | Daily reports, trial checks |
+| **Resource Usage** | Constant CPU/memory | Minimal (only when running) |
+
+**For Trial Reminders**: **Cron Job is recommended** because we only need to check trials once per day.
+
 ## 🚀 Render Deployment Options
 
-### Option 1: Background Worker (Recommended)
+### Option 1: Render Cron Job (Recommended)
 
-Render doesn't support traditional cron jobs, but you can use a Background Worker service:
+Render supports cron jobs - perfect for scheduled tasks like trial reminders:
 
-#### 1. Create Background Worker Service
+#### 1. Create Cron Job Service
 
 1. Go to your Render dashboard
-2. Click "New +" → "Background Worker"
+2. Click "New +" → "Cron Job"
 3. Connect your GitHub repository
 4. Configure the service:
 
@@ -28,6 +40,9 @@ Render doesn't support traditional cron jobs, but you can use a Background Worke
 **Build & Deploy:**
 - **Build Command**: `pip install -r requirements.txt`
 - **Start Command**: `python scripts/check_trial_expiry.py --hours-ahead 24`
+
+**Schedule:**
+- **Cron Expression**: `0 9 * * *` (Daily at 9 AM UTC = 5 PM Singapore Time)
 
 #### 2. Configure Environment Variables
 
@@ -42,9 +57,18 @@ SENDGRID_EU_RESIDENCY=false
 
 #### 3. Deploy
 
-Click "Create Background Worker" to deploy.
+Click "Create Cron Job" to deploy.
 
-### Option 2: External Cron Service
+### Option 2: Background Worker (Alternative)
+
+If you prefer a Background Worker (runs continuously):
+
+1. Go to your Render dashboard
+2. Click "New +" → "Background Worker"
+3. Configure the same settings as above
+4. **Note**: This costs more as it runs 24/7
+
+### Option 3: External Cron Service
 
 Use an external service to call your API endpoint:
 
@@ -215,11 +239,11 @@ The `/check-trials` endpoint returns:
 
 ## 📋 Production Checklist
 
-- [ ] Background Worker service created
+- [ ] Cron Job service created (recommended) OR Background Worker
 - [ ] Environment variables configured
+- [ ] Cron expression set: `0 9 * * *` (5 PM SGT)
 - [ ] API endpoints tested
 - [ ] Email service configured (SendGrid)
-- [ ] Schedule configured (5 PM SGT)
 - [ ] Monitoring set up
 - [ ] Logs accessible
 - [ ] Error handling tested
