@@ -476,6 +476,81 @@ async def send_trial_ended_notification(
             detail=f"Failed to send trial ended notification: {str(e)}"
         )
 
+@router.post("/check-trials")
+async def check_trials_endpoint(
+    hours_ahead: int = 24,
+    db: Session = Depends(get_db)
+):
+    """
+    External cron endpoint for checking trials ending soon.
+    This endpoint can be called by external cron services.
+    """
+    try:
+        logger.info(f"External cron check for trials ending in next {hours_ahead} hours")
+        
+        # Get trials ending soon
+        trials_response = await get_trials_ending_soon(hours_ahead, db)
+        
+        if not trials_response.success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to get trials ending soon"
+            )
+        
+        # Send trial warnings for each trial
+        warnings_sent = 0
+        for trial in trials_response.trials_ending:
+            try:
+                # Get plan details
+                plan_details = _get_plan_details(trial.subscription_tier)
+                
+                # Prepare trial data
+                trial_data = {
+                    'trial_duration': 7,  # Default
+                    'plan_name': plan_details['plan_name'],
+                    'plan_price': plan_details['plan_price'],
+                    'billing_cycle': plan_details['billing_cycle'],
+                    'trial_end_date': trial.trial_end_date,
+                    'plan_features': _get_plan_features(trial.subscription_tier),
+                    'plan_id': trial.subscription_tier
+                }
+                
+                # Send trial warning
+                warning_response = await send_trial_warning(
+                    TrialWarningRequest(
+                        user_id=trial.user_id,
+                        **trial_data
+                    ),
+                    db
+                )
+                
+                if warning_response.success:
+                    warnings_sent += 1
+                    logger.info(f"Trial warning sent to {trial.email}")
+                else:
+                    logger.error(f"Failed to send warning to {trial.email}")
+                    
+            except Exception as e:
+                logger.error(f"Error processing trial for {trial.email}: {str(e)}")
+                continue
+        
+        logger.info(f"External cron check completed. Sent {warnings_sent} warnings out of {len(trials_response.trials_ending)} trials")
+        
+        return {
+            "success": True,
+            "message": f"Trial check completed. Sent {warnings_sent} warnings",
+            "trials_checked": len(trials_response.trials_ending),
+            "warnings_sent": warnings_sent,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in check_trials_endpoint: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to check trials: {str(e)}"
+        )
+
 @router.get("/trials-ending-soon", response_model=TrialsEndingSoonResponse)
 async def get_trials_ending_soon(
     hours_ahead: int = 24,
@@ -559,3 +634,28 @@ def _get_plan_details(subscription_tier: str) -> dict:
         'plan_price': 0,
         'billing_cycle': 'month'
     })
+
+def _get_plan_features(subscription_tier: str) -> list:
+    """Get plan features based on subscription tier"""
+    features = {
+        'monthly': [
+            'Search for Forwarders and view aggregated scores',
+            'Full numerical score display',
+            'Single user subscription'
+        ],
+        'annual': [
+            'Everything in Monthly plan',
+            'Email notifications for new reviews',
+            'Score trend analytics',
+            'Save $38/year compared to monthly'
+        ],
+        'enterprise': [
+            'Everything in Annual plan',
+            'Up to three concurrent users',
+            'Manage forwarder profile',
+            'Branded ads on profile page',
+            'Comment on reviews',
+            'Best in location badge'
+        ]
+    }
+    return features.get(subscription_tier, [])
