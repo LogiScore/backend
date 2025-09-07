@@ -2311,5 +2311,134 @@ class EmailService:
             logger.info(f"FALLBACK: Trial ended notification would be sent to user {user_id}")
             return True  # Return True for fallback mode
 
+    async def send_subscription_cancellation_notification(self, user_id: str) -> bool:
+        """Send subscription cancellation notification email"""
+        try:
+            if not self.api_key:
+                # Fallback: log the notification to console for development
+                logger.info(f"FALLBACK: Subscription cancellation notification for user {user_id}")
+                return True
+            
+            # Get user data from database
+            from database.database import get_db
+            from database.models import User
+            from sqlalchemy.orm import Session
+            
+            db = next(get_db())
+            user = db.query(User).filter(User.id == user_id).first()
+            
+            if not user:
+                logger.error(f"User {user_id} not found for cancellation notification")
+                return False
+            
+            # Create email message
+            subject = "📋 Your LogiScore subscription has been canceled"
+            
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Subscription Canceled - LogiScore</title>
+                <style>
+                    body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }}
+                    .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                    .header {{ background: #6c757d; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }}
+                    .content {{ background: #f8f9fa; padding: 30px; border-radius: 0 0 8px 8px; }}
+                    .cancellation-info {{ background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 4px; margin: 20px 0; }}
+                    .cta-button {{ display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; margin: 20px 0; }}
+                    .footer {{ text-align: center; color: #666; font-size: 12px; margin-top: 30px; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>📋 Subscription Canceled</h1>
+                    </div>
+                    
+                    <div class="content">
+                        <p>Hi {user.first_name or 'User'},</p>
+                        
+                        <p>We're sorry to see you go! Your LogiScore subscription has been successfully canceled.</p>
+                        
+                        <div class="cancellation-info">
+                            <h3>What happens next?</h3>
+                            <ul>
+                                <li>Your subscription will remain active until the end of your current billing period</li>
+                                <li>You'll continue to have access to all LogiScore features until then</li>
+                                <li>No further charges will be made to your account</li>
+                            </ul>
+                        </div>
+                        
+                        <p>If you change your mind, you can reactivate your subscription at any time by logging into your account.</p>
+                        
+                        <div style="text-align: center;">
+                            <a href="https://logiscore.com/account" class="cta-button">Manage Your Account</a>
+                        </div>
+                        
+                        <p>Thank you for using LogiScore. We hope to see you again soon!</p>
+                        
+                        <p>Best regards,<br>The LogiScore Team</p>
+                    </div>
+                    
+                    <div class="footer">
+                        <p>This email was sent to {user.email}</p>
+                        <p>© 2024 LogiScore. All rights reserved.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            # Create plain text version
+            text_content = f"""
+            Hi {user.first_name or 'User'},
+            
+            We're sorry to see you go! Your LogiScore subscription has been successfully canceled.
+            
+            What happens next?
+            - Your subscription will remain active until the end of your current billing period
+            - You'll continue to have access to all LogiScore features until then
+            - No further charges will be made to your account
+            
+            If you change your mind, you can reactivate your subscription at any time by logging into your account.
+            
+            Manage your account: https://logiscore.com/account
+            
+            Thank you for using LogiScore. We hope to see you again soon!
+            
+            Best regards,
+            The LogiScore Team
+            
+            This email was sent to {user.email}
+            © 2024 LogiScore. All rights reserved.
+            """
+            
+            # Create SendGrid message
+            message = Mail(
+                from_email=Email(self.from_email, self.from_name),
+                to_emails=user.email,
+                subject=subject,
+                html_content=html_content,
+                plain_text_content=text_content
+            )
+            
+            # Send email
+            sg = SendGridAPIClient(api_key=self.api_key)
+            response = sg.send(message)
+            
+            if response.status_code == 202:
+                logger.info(f"Subscription cancellation notification sent successfully to {user.email}")
+                return True
+            else:
+                logger.error(f"Failed to send subscription cancellation notification. Status code: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error sending subscription cancellation notification to {user_id}: {str(e)}")
+            logger.info(f"FALLBACK: Subscription cancellation notification would be sent to user {user_id}")
+            return True  # Return True for fallback mode
+
 # Create singleton instance
 email_service = EmailService()
