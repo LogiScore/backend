@@ -11,6 +11,12 @@ def utc_now():
     """Get current UTC datetime with timezone info"""
     return datetime.now(timezone.utc)
 
+def calculate_next_billing_date(subscription_end_date: Optional[datetime]) -> Optional[datetime]:
+    """Calculate next billing date as one day before subscription end date"""
+    if subscription_end_date:
+        return subscription_end_date - timedelta(days=1)
+    return None
+
 logger = logging.getLogger(__name__)
 
 class SubscriptionService:
@@ -246,8 +252,13 @@ class SubscriptionService:
                         user.subscription_end_date = utc_now() + timedelta(days=duration * 30)  # Approximate months to days
                         user.subscription_start_date = utc_now()
                         user.subscription_status = 'active'
+                        user.auto_renew_enabled = True  # Enable auto-renewal by default for paid subscriptions
+                        # Calculate next billing date (one day before subscription end date)
+                        user.next_billing_date = calculate_next_billing_date(user.subscription_end_date)
                         logger.info(f"Set subscription start date to: {user.subscription_start_date}")
                         logger.info(f"Set subscription end date to: {user.subscription_end_date}")
+                        logger.info(f"Set next billing date to: {user.next_billing_date}")
+                        logger.info(f"Set auto_renew_enabled to: {user.auto_renew_enabled}")
                     except Exception as date_error:
                         logger.warning(f"Could not set subscription dates: {str(date_error)}")
                         # Continue without setting the dates
@@ -304,6 +315,9 @@ class SubscriptionService:
             if user.subscription_end_date:
                 days_remaining = max(0, (user.subscription_end_date - utc_now()).days)
             
+            # Calculate next billing date (one day before subscription end date)
+            next_billing_date = calculate_next_billing_date(user.subscription_end_date)
+            
             return {
                 'id': str(user.id),
                 'user_id': str(user.id),
@@ -315,7 +329,7 @@ class SubscriptionService:
                 'stripe_subscription_id': user.stripe_subscription_id,
                 'days_remaining': days_remaining,
                 'last_billing_date': user.last_billing_date.isoformat() if user.last_billing_date else None,
-                'next_billing_date': user.next_billing_date.isoformat() if user.next_billing_date else None
+                'next_billing_date': next_billing_date.isoformat() if next_billing_date else None
             }
             
         except Exception as e:
@@ -461,17 +475,24 @@ class SubscriptionService:
         if stripe_subscription:
             user.stripe_subscription_id = stripe_subscription.id
             user.subscription_status = 'active'
+            user.auto_renew_enabled = True  # Enable auto-renewal by default for paid subscriptions
             
             if stripe_subscription.get('current_period_end'):
                 user.subscription_end_date = datetime.fromtimestamp(
                     stripe_subscription.current_period_end
                 )
+                # Calculate next billing date (one day before subscription end date)
+                user.next_billing_date = calculate_next_billing_date(user.subscription_end_date)
             elif trial_days > 0:
                 user.subscription_end_date = utc_now() + timedelta(days=trial_days)
                 user.subscription_status = 'trial'
+                # Calculate next billing date (one day before trial end date)
+                user.next_billing_date = calculate_next_billing_date(user.subscription_end_date)
         else:
             # Free tier
             user.subscription_status = 'active'
             user.subscription_end_date = None
+            user.next_billing_date = None
+            user.auto_renew_enabled = False  # Disable auto-renewal for free tier
         
         db.commit()

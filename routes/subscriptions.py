@@ -340,19 +340,32 @@ async def toggle_auto_renewal(
 ):
     """Toggle auto-renewal setting for the user's subscription"""
     try:
-        # Check if user has an active subscription
-        if not current_user.stripe_subscription_id:
+        # Check if user has an active subscription (check subscription tier and status)
+        if not current_user.subscription_tier or current_user.subscription_tier == 'free':
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="No active subscription found"
             )
         
-        # Update Stripe subscription auto-renewal setting
-        stripe_service = get_stripe_service()
-        stripe_subscription = await stripe_service.update_subscription_auto_renewal(
-            subscription_id=current_user.stripe_subscription_id,
-            auto_renew=auto_renew_data.auto_renew_enabled
-        )
+        # Check if subscription is active or trial
+        if current_user.subscription_status not in ['active', 'trial']:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No active subscription found"
+            )
+        
+        # Update Stripe subscription auto-renewal setting if Stripe subscription exists
+        stripe_subscription = None
+        if current_user.stripe_subscription_id:
+            try:
+                stripe_service = get_stripe_service()
+                stripe_subscription = await stripe_service.update_subscription_auto_renewal(
+                    subscription_id=current_user.stripe_subscription_id,
+                    auto_renew=auto_renew_data.auto_renew_enabled
+                )
+            except Exception as stripe_error:
+                logger.warning(f"Failed to update Stripe subscription auto-renewal: {str(stripe_error)}")
+                # Continue with database update even if Stripe update fails
         
         # Update database
         current_user.auto_renew_enabled = auto_renew_data.auto_renew_enabled
@@ -363,8 +376,10 @@ async def toggle_auto_renewal(
         return {
             "message": f"Auto-renewal {status_message} successfully",
             "auto_renew_enabled": auto_renew_data.auto_renew_enabled,
-            "subscription_id": current_user.stripe_subscription_id,
-            "cancel_at_period_end": stripe_subscription.get('cancel_at_period_end', False)
+            "subscription_tier": current_user.subscription_tier,
+            "subscription_status": current_user.subscription_status,
+            "stripe_subscription_id": current_user.stripe_subscription_id,
+            "cancel_at_period_end": stripe_subscription.get('cancel_at_period_end', False) if stripe_subscription else None
         }
         
     except HTTPException:
