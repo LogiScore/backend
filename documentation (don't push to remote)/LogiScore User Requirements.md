@@ -22,7 +22,7 @@ This document outlines the user requirements for the LogiScore freight forwarder
 
 ### 3. Review System
 - **Standardized Questions**: 8-category rating system
-- **Star Rating Scale**: 0-4 stars with contextual labels
+- **Star Rating Scale**: 0-5 stars with contextual labels
 - **Branch-Specific Reviews**: Location-based review system
 - **Review Moderation**: Quality control and spam prevention
 - **Review Management**: Edit/delete own reviews

@@ -26,7 +26,7 @@ This document outlines the comprehensive review system that has been implemented
   - `category_name`: Human-readable category name
   - `question_id`: Specific question identifier
   - `question_text`: The actual question text
-  - `rating`: Integer 0-4 star rating
+  - `rating`: Integer 0-5 star rating
   - `rating_definition`: What the rating means
   - `weight`: Question weight (usually 1.0)
   
@@ -88,7 +88,7 @@ This document outlines the comprehensive review system that has been implemented
 6. **Response** includes complete review with ID
 
 ### **Rating System**
-- **Scale:** 0-4 stars (0 = Not applicable, 1-4 = Poor to Excellent)
+- **Scale:** 0-5 stars (0 = Not applicable, 1-5 = Poor to Excellent)
 - **Weighting:** Anonymous reviews count 50%, authenticated reviews count 100%
 - **Calculation:** Aggregate rating from all questions, then weighted by user type
 

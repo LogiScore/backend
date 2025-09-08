@@ -20,6 +20,21 @@ class SubscriptionExpirationService:
     def __init__(self):
         self.email_service = EmailService()
     
+    def _get_subscription_price(self, tier: str) -> Dict[str, Any]:
+        """Get subscription pricing information for a given tier"""
+        pricing = {
+            'shipper_monthly': {'amount': 29.99, 'currency': 'USD', 'period': 'month'},
+            'shipper_annual': {'amount': 299.99, 'currency': 'USD', 'period': 'year'},
+            'forwarder_monthly': {'amount': 99.99, 'currency': 'USD', 'period': 'month'},
+            'forwarder_annual': {'amount': 999.99, 'currency': 'USD', 'period': 'year'},
+            'forwarder_annual_plus': {'amount': 1999.99, 'currency': 'USD', 'period': 'year'},
+            'monthly': {'amount': 29.99, 'currency': 'USD', 'period': 'month'},
+            'annual': {'amount': 299.99, 'currency': 'USD', 'period': 'year'},
+            'enterprise': {'amount': 999.99, 'currency': 'USD', 'period': 'year'}
+        }
+        
+        return pricing.get(tier, {'amount': 0, 'currency': 'USD', 'period': 'month'})
+    
     async def check_expiring_subscriptions(self, db: Session = None) -> Dict[str, Any]:
         """
         Check for subscriptions expiring within 7 days and send notifications.
@@ -90,13 +105,21 @@ class SubscriptionExpirationService:
         try:
             logger.info(f"Sending expiration notification to user {user.email} - {days_until_expiry} days remaining")
             
+            # Get subscription pricing information
+            subscription_price = self._get_subscription_price(user.subscription_tier)
+            next_billing_date = user.subscription_end_date - timedelta(days=1) if user.subscription_end_date else None
+            
             # Send email notification
             email_data = {
                 'user_name': user.full_name or user.username or 'User',
                 'subscription_tier': user.subscription_tier,
                 'expiry_date': user.subscription_end_date.strftime('%B %d, %Y'),
                 'days_remaining': days_until_expiry,
-                'renewal_link': f"https://logiscore.com/renew?user_id={user.id}"
+                'auto_renew_enabled': user.auto_renew_enabled or False,
+                'next_billing_date': next_billing_date.strftime('%B %d, %Y') if next_billing_date else None,
+                'subscription_price': subscription_price,
+                'renewal_link': f"https://logiscore.com/renew?user_id={user.id}",
+                'manage_subscription_link': f"https://logiscore.com/subscription?user_id={user.id}"
             }
             
             await self.email_service.send_subscription_expiration_warning(

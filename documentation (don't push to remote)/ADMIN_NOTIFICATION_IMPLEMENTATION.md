@@ -12,6 +12,8 @@ This document describes the implementation of automatic admin notifications when
 - **Purpose:** Sends formatted email notifications to admin@logiscore.net when new companies are added
 - **Features:**
   - Professional HTML email template with company and creator details
+  - Website link directs to admin site (https://logiscore.net/8x7k9m2p) for company management
+  - Simplified company information (only company name displayed)
   - Automatic fallback logging when SendGrid is not configured
   - Comprehensive error handling and logging
   - EU data residency support for SendGrid
@@ -26,11 +28,7 @@ This document describes the implementation of automatic admin notifications when
   ```json
   {
     "forwarder_data": {
-      "name": "Company Name",
-      "website": "https://example.com",
-      "description": "Company description",
-      "headquarters_country": "Country",
-      "logo_url": "https://example.com/logo.png"
+      "name": "Company Name"
     },
     "creator_data": {
       "id": "user_id",

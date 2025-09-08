@@ -1283,6 +1283,16 @@ class EmailService:
             # Create email message
             subject = f"LogiScore - Your {email_data.get('subscription_tier', 'subscription')} expires in {email_data.get('days_remaining', '7')} days"
             
+            # Determine auto-renewal status and billing information
+            auto_renew_enabled = email_data.get('auto_renew_enabled', False)
+            subscription_price = email_data.get('subscription_price', {})
+            next_billing_date = email_data.get('next_billing_date')
+            
+            # Format price information
+            price_amount = subscription_price.get('amount', 0)
+            price_currency = subscription_price.get('currency', 'USD')
+            price_period = subscription_price.get('period', 'month')
+            
             html_content = f"""
             <!DOCTYPE html>
             <html>
@@ -1312,6 +1322,22 @@ class EmailService:
                         border-radius: 5px;
                         margin: 20px 0;
                     }}
+                    .info-box {{
+                        background: #e7f3ff;
+                        border: 1px solid #b3d9ff;
+                        color: #004085;
+                        padding: 15px;
+                        border-radius: 5px;
+                        margin: 20px 0;
+                    }}
+                    .billing-info {{
+                        background: #d4edda;
+                        border: 1px solid #c3e6cb;
+                        color: #155724;
+                        padding: 15px;
+                        border-radius: 5px;
+                        margin: 20px 0;
+                    }}
                     .cta-button {{
                         background: #007bff;
                         color: white;
@@ -1319,7 +1345,17 @@ class EmailService:
                         text-decoration: none;
                         border-radius: 5px;
                         display: inline-block;
-                        margin: 20px 0;
+                        margin: 10px 5px;
+                        font-weight: bold;
+                    }}
+                    .secondary-button {{
+                        background: #6c757d;
+                        color: white;
+                        padding: 15px 30px;
+                        text-decoration: none;
+                        border-radius: 5px;
+                        display: inline-block;
+                        margin: 10px 5px;
                         font-weight: bold;
                     }}
                     .footer {{
@@ -1329,6 +1365,10 @@ class EmailService:
                         border-top: 1px solid #dee2e6;
                         color: #6c757d;
                         font-size: 14px;
+                    }}
+                    .highlight {{
+                        font-weight: bold;
+                        color: #dc3545;
                     }}
                 </style>
             </head>
@@ -1342,17 +1382,41 @@ class EmailService:
                         <p>That's only <strong>{email_data.get('days_remaining', '7')} days</strong> from now!</p>
                     </div>
                     
-                    <p>To continue enjoying all the benefits of your LogiScore subscription, please renew before the expiration date.</p>
+                    <div class="info-box">
+                        <h3>📋 Your Subscription Details</h3>
+                        <p><strong>Current Plan:</strong> {email_data.get('subscription_tier', 'subscription').replace('_', ' ').title()}</p>
+                        <p><strong>Expiration Date:</strong> {email_data.get('expiry_date', 'the specified date')}</p>
+                        <p><strong>Auto-Renewal:</strong> <span class="highlight">{'Enabled' if auto_renew_enabled else 'Disabled'}</span></p>
+                    </div>
                     
-                    <p><strong>What happens if you don't renew?</strong></p>
-                    <ul>
-                        <li>Your account will revert to the free tier</li>
-                        <li>You'll lose access to premium features</li>
-                        <li>Your data and settings will be preserved</li>
-                    </ul>
+                    {f'''
+                    <div class="billing-info">
+                        <h3>💳 Auto-Renewal Billing Information</h3>
+                        <p>Since auto-renewal is <strong>enabled</strong>, your subscription will be automatically renewed on <strong>{next_billing_date}</strong> (one day before expiration).</p>
+                        <p><strong>Amount to be charged:</strong> <span class="highlight">${price_amount:.2f} {price_currency}</span> per {price_period}</p>
+                        <p>You will receive a payment confirmation email once the renewal is processed.</p>
+                    </div>
+                    ''' if auto_renew_enabled else '''
+                    <div class="info-box">
+                        <h3>⚠️ Auto-Renewal Disabled</h3>
+                        <p>Since auto-renewal is <strong>disabled</strong>, your subscription will <strong>not</strong> be automatically renewed.</p>
+                        <p><strong>What will happen on {email_data.get('expiry_date', 'the expiration date')}:</strong></p>
+                        <ul>
+                            <li>Your account will automatically revert to the free tier</li>
+                            <li>You'll lose access to premium features</li>
+                            <li>Your data and settings will be preserved</li>
+                            <li>You can upgrade again at any time</li>
+                        </ul>
+                    </div>
+                    '''}
                     
-                    <p><strong>Ready to renew?</strong></p>
-                    <a href="{email_data.get('renewal_link', 'https://logiscore.com/renew')}" class="cta-button">Renew Subscription Now</a>
+                    <p><strong>Need to make changes?</strong></p>
+                    <p>You can manage your subscription settings, including auto-renewal, at any time through your account dashboard.</p>
+                    
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{email_data.get('renewal_link', 'https://logiscore.com/renew')}" class="cta-button">Renew Subscription Now</a>
+                        <a href="{email_data.get('manage_subscription_link', 'https://logiscore.com/subscription')}" class="secondary-button">Manage Subscription</a>
+                    </div>
                     
                     <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
                     
