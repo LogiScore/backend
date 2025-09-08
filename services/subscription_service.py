@@ -114,20 +114,21 @@ class SubscriptionService:
                 raise Exception("User not found")
             
             # Update database directly
-            logger.info(f"Before update - User {user_id}: status={user.subscription_status}, auto_renew={user.auto_renew_enabled}, end_date={user.subscription_end_date}")
+            logger.info(f"Before update - User {user_id}: status={user.subscription_status}, tier={user.subscription_tier}, auto_renew={user.auto_renew_enabled}, end_date={user.subscription_end_date}")
             
             user.subscription_status = 'canceled'
+            user.subscription_tier = 'free'  # Downgrade to free tier when canceled
             user.auto_renew_enabled = False
             user.subscription_end_date = utc_now()
             
-            logger.info(f"After update - User {user_id}: status={user.subscription_status}, auto_renew={user.auto_renew_enabled}, end_date={user.subscription_end_date}")
+            logger.info(f"After update - User {user_id}: status={user.subscription_status}, tier={user.subscription_tier}, auto_renew={user.auto_renew_enabled}, end_date={user.subscription_end_date}")
             
             db.commit()
             logger.info(f"Database commit successful for user {user_id}")
             
             # Verify the update
             db.refresh(user)
-            logger.info(f"After refresh - User {user_id}: status={user.subscription_status}, auto_renew={user.auto_renew_enabled}, end_date={user.subscription_end_date}")
+            logger.info(f"After refresh - User {user_id}: status={user.subscription_status}, tier={user.subscription_tier}, auto_renew={user.auto_renew_enabled}, end_date={user.subscription_end_date}")
             
             # Send cancellation email
             await self.email_service.send_subscription_cancellation_notification(user_id)
