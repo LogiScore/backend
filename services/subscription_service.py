@@ -119,7 +119,8 @@ class SubscriptionService:
             user.subscription_status = 'canceled'
             user.subscription_tier = 'free'  # Downgrade to free tier when canceled
             user.auto_renew_enabled = False
-            user.subscription_end_date = utc_now()
+            user.subscription_start_date = None  # Clear start date when canceled
+            user.subscription_end_date = None    # Clear end date when canceled
             
             logger.info(f"After update - User {user_id}: status={user.subscription_status}, tier={user.subscription_tier}, auto_renew={user.auto_renew_enabled}, end_date={user.subscription_end_date}")
             
