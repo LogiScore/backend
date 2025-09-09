@@ -62,4 +62,36 @@ services:
       - key: CRON_SECRET_KEY
         generateValue: true
 
+  - type: cron
+    name: subscription-expiration-check
+    env: python
+    buildCommand: pip install -r requirements.txt
+    schedule: "0 9 * * *"
+    command: python3 run_subscription_check.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DATABASE_URL
+        value: postgresql://postgres:[YOUR-SUPABASE-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: STRIPE_SECRET_KEY
+        value: sk_test_your_stripe_key_here
+      - key: STRIPE_PUBLISHABLE_KEY
+        value: pk_test_your_stripe_key_here
+      - key: STRIPE_WEBHOOK_SECRET
+        value: whsec_your_webhook_secret_here
+      - key: STRIPE_SHIPPER_MONTHLY_PRICE_ID
+        value: price_your_shipper_monthly_price_id_here
+      - key: STRIPE_SHIPPER_ANNUAL_PRICE_ID
+        value: price_your_shipper_annual_price_id_here
+      - key: STRIPE_FORWARDER_MONTHLY_PRICE_ID
+        value: price_your_forwarder_monthly_price_id_here
+      - key: STRIPE_FORWARDER_ANNUAL_PRICE_ID
+        value: price_your_forwarder_annual_price_id_here
+      - key: STRIPE_FORWARDER_ANNUAL_PLUS_PRICE_ID
+        value: price_your_forwarder_annual_plus_price_id_here
+      - key: CRON_SECRET_KEY
+        generateValue: true
+
  
