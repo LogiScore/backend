@@ -2607,7 +2607,7 @@ class EmailService:
                 html_content=html_content
             )
             
-            response = self.sg.send(message)
+            response = sg.send(message)
             
             if response.status_code == 202:
                 logger.info(f"Auto-renewal toggle notification sent successfully to {to_email}")
