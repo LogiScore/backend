@@ -2598,6 +2598,7 @@ class EmailService:
             """
             
             # Send email using SendGrid
+            sg = SendGridAPIClient(self.api_key)
             message = Mail(
                 from_email=Email(self.from_email, self.from_name),
                 to_emails=to_email,
