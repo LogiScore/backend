@@ -13,6 +13,13 @@ cd "$PROJECT_DIR"
 # Set environment variables if not already set
 export BACKEND_API_URL="${BACKEND_API_URL:-http://localhost:8000}"
 export ADMIN_API_TOKEN="${ADMIN_API_TOKEN:-}"
+export DATABASE_URL="sqlite:///./test.db"
+export SENDGRID_API_KEY="your_sendgrid_api_key_here"
+export MAIL_FROM="noreply@logiscore.com"
+export MAIL_FROM_NAME="LogiScore"
+export LOG_LEVEL="INFO"
+export ENABLE_EMAIL_NOTIFICATIONS="True"
+export ENABLE_SUBSCRIPTION_MANAGEMENT="True"
 
 # Create logs directory if it doesn't exist
 mkdir -p logs
