@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, Dict
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 import logging
@@ -51,6 +51,60 @@ class SubscriptionCancelRequest(BaseModel):
 
 class AutoRenewalToggleRequest(BaseModel):
     auto_renew_enabled: bool
+
+class PaymentIntentRequest(BaseModel):
+    amount: int
+    currency: str = 'usd'
+    metadata: Optional[Dict[str, str]] = None
+
+class PaymentIntentResponse(BaseModel):
+    client_secret: str
+    payment_intent_id: str
+
+@router.get("/stripe-config")
+async def get_stripe_config():
+    """Get Stripe configuration for frontend"""
+    try:
+        import os
+        return {
+            "publishable_key": os.getenv("STRIPE_PUBLISHABLE_KEY"),
+            "stripe_enabled": bool(os.getenv("STRIPE_SECRET_KEY") and os.getenv("STRIPE_PUBLISHABLE_KEY"))
+        }
+    except Exception as e:
+        logger.error(f"Failed to get Stripe config: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get Stripe config: {str(e)}"
+        )
+
+@router.post("/create-payment-intent", response_model=PaymentIntentResponse)
+async def create_payment_intent(
+    payment_request: PaymentIntentRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Create a payment intent for one-time payments"""
+    try:
+        stripe_service = get_stripe_service()
+        
+        # Create payment intent
+        payment_intent = await stripe_service.create_payment_intent(
+            amount=payment_request.amount,
+            currency=payment_request.currency,
+            customer_id=current_user.stripe_customer_id,
+            metadata=payment_request.metadata
+        )
+        
+        return PaymentIntentResponse(
+            client_secret=payment_intent['client_secret'],
+            payment_intent_id=payment_intent['id']
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to create payment intent: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create payment intent: {str(e)}"
+        )
 
 @router.post("/create", response_model=SubscriptionResponse)
 async def create_subscription(
