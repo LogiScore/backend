@@ -668,6 +668,40 @@ async def test_endpoint():
     """Test endpoint for development"""
     return {"message": "API is working correctly"}
 
+@app.get("/api/stripe-config-test")
+async def stripe_config_test():
+    """Test Stripe configuration"""
+    try:
+        stripe_key = os.getenv("STRIPE_SECRET_KEY")
+        publishable_key = os.getenv("STRIPE_PUBLISHABLE_KEY")
+        
+        if not stripe_key or stripe_key == "sk_test_your_test_secret_key_here":
+            return {
+                "status": "error",
+                "message": "Stripe secret key not configured properly",
+                "stripe_secret_configured": bool(stripe_key and stripe_key != "sk_test_your_test_secret_key_here"),
+                "stripe_publishable_configured": bool(publishable_key and publishable_key != "pk_test_your_test_publishable_key_here")
+            }
+        
+        # Test Stripe API call
+        stripe.api_key = stripe_key
+        account = stripe.Account.retrieve()
+        
+        return {
+            "status": "success",
+            "message": "Stripe configuration is working",
+            "stripe_account_id": account.id,
+            "stripe_secret_configured": True,
+            "stripe_publishable_configured": bool(publishable_key and publishable_key != "pk_test_your_test_publishable_key_here")
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Stripe configuration error: {str(e)}",
+            "stripe_secret_configured": bool(os.getenv("STRIPE_SECRET_KEY") and os.getenv("STRIPE_SECRET_KEY") != "sk_test_your_test_secret_key_here"),
+            "stripe_publishable_configured": bool(os.getenv("STRIPE_PUBLISHABLE_KEY") and os.getenv("STRIPE_PUBLISHABLE_KEY") != "pk_test_your_test_publishable_key_here")
+        }
+
 @app.get("/api/locations-test")
 async def locations_test():
     """Test endpoint to verify locations router is loaded"""

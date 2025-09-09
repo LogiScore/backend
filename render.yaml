@@ -17,6 +17,16 @@ services:
         value: pk_test_your_stripe_key_here
       - key: STRIPE_WEBHOOK_SECRET
         value: whsec_your_webhook_secret_here
+      - key: STRIPE_SHIPPER_MONTHLY_PRICE_ID
+        value: price_your_shipper_monthly_price_id_here
+      - key: STRIPE_SHIPPER_ANNUAL_PRICE_ID
+        value: price_your_shipper_annual_price_id_here
+      - key: STRIPE_FORWARDER_MONTHLY_PRICE_ID
+        value: price_your_forwarder_monthly_price_id_here
+      - key: STRIPE_FORWARDER_ANNUAL_PRICE_ID
+        value: price_your_forwarder_annual_price_id_here
+      - key: STRIPE_FORWARDER_ANNUAL_PLUS_PRICE_ID
+        value: price_your_forwarder_annual_plus_price_id_here
       - key: CRON_SECRET_KEY
         generateValue: true
 
@@ -39,6 +49,16 @@ services:
         value: pk_test_your_stripe_key_here
       - key: STRIPE_WEBHOOK_SECRET
         value: whsec_your_webhook_secret_here
+      - key: STRIPE_SHIPPER_MONTHLY_PRICE_ID
+        value: price_your_shipper_monthly_price_id_here
+      - key: STRIPE_SHIPPER_ANNUAL_PRICE_ID
+        value: price_your_shipper_annual_price_id_here
+      - key: STRIPE_FORWARDER_MONTHLY_PRICE_ID
+        value: price_your_forwarder_monthly_price_id_here
+      - key: STRIPE_FORWARDER_ANNUAL_PRICE_ID
+        value: price_your_forwarder_annual_price_id_here
+      - key: STRIPE_FORWARDER_ANNUAL_PLUS_PRICE_ID
+        value: price_your_forwarder_annual_plus_price_id_here
       - key: CRON_SECRET_KEY
         generateValue: true
 
