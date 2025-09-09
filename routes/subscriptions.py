@@ -11,6 +11,7 @@ from database.models import User
 from auth.auth import get_current_user
 from services.subscription_service import SubscriptionService
 from services.stripe_service import StripeService
+from email_service import EmailService
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -18,6 +19,7 @@ logger = logging.getLogger(__name__)
 # Initialize services lazily to avoid import-time errors
 subscription_service = None
 stripe_service = None
+email_service = None
 
 def get_subscription_service():
     global subscription_service
@@ -30,6 +32,12 @@ def get_stripe_service():
     if stripe_service is None:
         stripe_service = StripeService()
     return stripe_service
+
+def get_email_service():
+    global email_service
+    if email_service is None:
+        email_service = EmailService()
+    return email_service
 
 class SubscriptionRequest(BaseModel):
     plan_id: str
@@ -424,6 +432,19 @@ async def toggle_auto_renewal(
         # Update database
         current_user.auto_renew_enabled = auto_renew_data.auto_renew_enabled
         db.commit()
+        
+        # Send email notification
+        try:
+            email_service = get_email_service()
+            await email_service.send_auto_renewal_toggle_notification(
+                to_email=current_user.email,
+                user_name=current_user.full_name or current_user.username,
+                auto_renew_enabled=auto_renew_data.auto_renew_enabled,
+                subscription_tier=current_user.subscription_tier
+            )
+        except Exception as email_error:
+            logger.warning(f"Failed to send auto-renewal toggle notification email: {str(email_error)}")
+            # Continue with the response even if email fails
         
         # Return confirmation
         status_message = "enabled" if auto_renew_data.auto_renew_enabled else "disabled"

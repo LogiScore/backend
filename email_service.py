@@ -2504,5 +2504,121 @@ class EmailService:
             logger.info(f"FALLBACK: Subscription cancellation notification would be sent to user {user_id}")
             return True  # Return True for fallback mode
 
+    async def send_auto_renewal_toggle_notification(self, to_email: str, user_name: str, auto_renew_enabled: bool, subscription_tier: str) -> bool:
+        """Send auto-renewal toggle notification email"""
+        try:
+            if not self.api_key:
+                logger.info(f"FALLBACK: Auto-renewal toggle notification would be sent to {to_email}")
+                return True
+            
+            status_text = "enabled" if auto_renew_enabled else "disabled"
+            status_emoji = "✅" if auto_renew_enabled else "❌"
+            
+            subject = f"{status_emoji} Auto-renewal {status_text} - LogiScore"
+            
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Auto-renewal {status_text.title()} - LogiScore</title>
+                <style>
+                    body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }}
+                    .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                    .header {{ background: {'#28a745' if auto_renew_enabled else '#dc3545'}; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }}
+                    .content {{ background: #f8f9fa; padding: 30px; border-radius: 0 0 8px 8px; }}
+                    .status-info {{ background: {'#d4edda' if auto_renew_enabled else '#f8d7da'}; border: 1px solid {'#c3e6cb' if auto_renew_enabled else '#f5c6cb'}; padding: 15px; border-radius: 4px; margin: 20px 0; }}
+                    .cta-button {{ display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; margin: 20px 0; }}
+                    .footer {{ text-align: center; color: #666; font-size: 12px; margin-top: 30px; }}
+                    .highlight {{ font-weight: bold; color: {'#155724' if auto_renew_enabled else '#721c24'}; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>{status_emoji} Auto-renewal {status_text.title()}</h1>
+                    </div>
+                    
+                    <div class="content">
+                        <p>Hi {user_name or 'User'},</p>
+                        
+                        <p>Your LogiScore subscription auto-renewal setting has been <span class="highlight">{status_text}</span>.</p>
+                        
+                        <div class="status-info">
+                            <h3>Subscription Details</h3>
+                            <ul>
+                                <li><strong>Plan:</strong> {subscription_tier.title()}</li>
+                                <li><strong>Auto-renewal:</strong> <span class="highlight">{'Enabled' if auto_renew_enabled else 'Disabled'}</span></li>
+                            </ul>
+                        </div>
+                        
+                        {'<p>Your subscription will automatically renew at the end of each billing period. You\'ll receive a payment confirmation email when the renewal is processed.</p>' if auto_renew_enabled else '<p>Your subscription will not automatically renew. You\'ll need to manually renew it before it expires to continue using LogiScore services.</p>'}
+                        
+                        <p>You can change this setting at any time through your account dashboard.</p>
+                        
+                        <div style="text-align: center;">
+                            <a href="https://logiscore.com/account" class="cta-button">Manage Subscription</a>
+                        </div>
+                        
+                        <p>If you have any questions about your subscription, please don't hesitate to contact our support team.</p>
+                        
+                        <p>Best regards,<br>The LogiScore Team</p>
+                    </div>
+                    
+                    <div class="footer">
+                        <p>This email was sent to {to_email}</p>
+                        <p>© 2024 LogiScore. All rights reserved.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            # Create plain text version
+            text_content = f"""
+            Hi {user_name or 'User'},
+            
+            Your LogiScore subscription auto-renewal setting has been {status_text}.
+            
+            Subscription Details:
+            - Plan: {subscription_tier.title()}
+            - Auto-renewal: {'Enabled' if auto_renew_enabled else 'Disabled'}
+            
+            {'Your subscription will automatically renew at the end of each billing period. You\'ll receive a payment confirmation email when the renewal is processed.' if auto_renew_enabled else 'Your subscription will not automatically renew. You\'ll need to manually renew it before it expires to continue using LogiScore services.'}
+            
+            You can change this setting at any time through your account dashboard.
+            
+            Manage your subscription: https://logiscore.com/account
+            
+            If you have any questions about your subscription, please don't hesitate to contact our support team.
+            
+            Best regards,
+            The LogiScore Team
+            """
+            
+            # Send email using SendGrid
+            message = Mail(
+                from_email=Email(self.from_email, self.from_name),
+                to_emails=to_email,
+                subject=subject,
+                plain_text_content=text_content,
+                html_content=html_content
+            )
+            
+            response = self.sg.send(message)
+            
+            if response.status_code == 202:
+                logger.info(f"Auto-renewal toggle notification sent successfully to {to_email}")
+                return True
+            else:
+                logger.error(f"Failed to send auto-renewal toggle notification to {to_email}: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error sending auto-renewal toggle notification to {to_email}: {str(e)}")
+            logger.info(f"FALLBACK: Auto-renewal toggle notification would be sent to {to_email}")
+            return True  # Return True for fallback mode
+
 # Create singleton instance
 email_service = EmailService()
