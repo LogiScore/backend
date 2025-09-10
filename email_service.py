@@ -2105,7 +2105,7 @@ class EmailService:
                     </ul>
                     
                     <div style="text-align: center;">
-                        <a href="https://logiscore.net/freight-forwarders/{freight_forwarder_id}" class="action-button">View {freight_forwarder_name}</a>
+                        <a href="https://logiscore.net/freight-forwarder/{freight_forwarder_id}" class="action-button">View {freight_forwarder_name}</a>
                     </div>
                     
                     {expiry_text}
