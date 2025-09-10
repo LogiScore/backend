@@ -165,14 +165,46 @@ class StripeService:
     async def attach_payment_method(self, payment_method_id: str, customer_id: str) -> Dict[str, Any]:
         """Attach payment method to customer"""
         try:
+            # First, verify the payment method exists
+            try:
+                payment_method = self.stripe.PaymentMethod.retrieve(payment_method_id)
+                logger.info(f"Payment method {payment_method_id} found, type: {payment_method.type}")
+            except stripe.error.StripeError as e:
+                if e.code == 'resource_missing':
+                    logger.error(f"Payment method {payment_method_id} not found in Stripe account")
+                    raise Exception(f"Payment method not found. Please check that you're using the correct Stripe account and that the payment method exists.")
+                else:
+                    logger.error(f"Failed to retrieve payment method: {str(e)}")
+                    raise Exception(f"Failed to verify payment method: {str(e)}")
+            
+            # Attach the payment method to the customer
             return self.stripe.PaymentMethod.attach(
                 payment_method_id,
                 customer=customer_id
             )
         except stripe.error.StripeError as e:
             logger.error(f"Failed to attach payment method: {str(e)}")
-            raise Exception(f"Failed to attach payment method: {str(e)}")
+            if e.code == 'resource_missing':
+                raise Exception(f"Payment method not found. This could be due to:\n1. Wrong Stripe account (test vs live mode)\n2. Payment method was created in a different Stripe account\n3. Payment method has been deleted or expired\n\nPlease try creating a new payment method.")
+            else:
+                raise Exception(f"Failed to attach payment method: {str(e)}")
     
+    async def verify_payment_method(self, payment_method_id: str) -> Dict[str, Any]:
+        """Verify that a payment method exists and return its details"""
+        try:
+            payment_method = self.stripe.PaymentMethod.retrieve(payment_method_id)
+            return {
+                'id': payment_method.id,
+                'type': payment_method.type,
+                'card': getattr(payment_method, 'card', None),
+                'customer': getattr(payment_method, 'customer', None)
+            }
+        except stripe.error.StripeError as e:
+            if e.code == 'resource_missing':
+                raise Exception(f"Payment method {payment_method_id} not found. Please ensure you're using the correct Stripe account and that the payment method exists.")
+            else:
+                raise Exception(f"Failed to verify payment method: {str(e)}")
+
     async def get_price_id_for_tier(self, tier: str, user_type: str) -> Optional[str]:
         """Get Stripe price ID for subscription tier"""
         # First try the tier directly

@@ -193,10 +193,29 @@ async def create_subscription(
         
     except Exception as e:
         logger.error(f"Failed to create subscription: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create subscription: {str(e)}"
-        )
+        
+        # Provide more specific error messages for common issues
+        error_message = str(e)
+        if "Payment method not found" in error_message or "No such PaymentMethod" in error_message:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Payment method not found. Please try creating a new payment method or check that you're using the correct Stripe account."
+            )
+        elif "Payment method validation failed" in error_message:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid payment method. Please ensure the payment method exists and try again."
+            )
+        elif "No Stripe price configured" in error_message:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Subscription pricing not configured. Please contact support."
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to create subscription: {str(e)}"
+            )
 
 @router.post("/cancel")
 async def cancel_subscription(

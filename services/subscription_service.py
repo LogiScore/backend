@@ -53,6 +53,14 @@ class SubscriptionService:
                 raise Exception(f"No Stripe price configured for tier: {tier}")
             
             if is_paid and payment_method_id:
+                # First verify the payment method exists
+                try:
+                    payment_method_info = await self.stripe_service.verify_payment_method(payment_method_id)
+                    logger.info(f"Payment method verified: {payment_method_info['type']}")
+                except Exception as e:
+                    logger.error(f"Payment method verification failed: {str(e)}")
+                    raise Exception(f"Payment method validation failed: {str(e)}")
+                
                 # Attach payment method
                 await self.stripe_service.attach_payment_method(payment_method_id, customer_id)
                 
