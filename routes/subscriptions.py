@@ -40,7 +40,7 @@ def get_email_service():
     return email_service
 
 class SubscriptionRequest(BaseModel):
-    plan_id: str
+    plan_id: int
     plan_name: str
     user_type: str
     payment_method_id: Optional[str] = None
@@ -56,6 +56,15 @@ class SubscriptionResponse(BaseModel):
 
 class SubscriptionCancelRequest(BaseModel):
     reason: Optional[str] = None
+
+# Plan ID mapping - maps numeric IDs from frontend to string-based plan identifiers
+PLAN_ID_MAPPING = {
+    1: "shipper_monthly",
+    2: "shipper_annual", 
+    3: "forwarder_monthly",
+    4: "forwarder_annual",
+    5: "forwarder_annual_plus"
+}
 
 class AutoRenewalToggleRequest(BaseModel):
     auto_renew_enabled: bool
@@ -122,6 +131,15 @@ async def create_subscription(
 ):
     """Create a new subscription for the user"""
     try:
+        # Map numeric plan_id to string-based plan identifier
+        if subscription_request.plan_id not in PLAN_ID_MAPPING:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid plan ID: {subscription_request.plan_id}"
+            )
+        
+        plan_identifier = PLAN_ID_MAPPING[subscription_request.plan_id]
+        
         # Validate user type matches plan type
         if current_user.user_type != subscription_request.user_type:
             raise HTTPException(
@@ -129,8 +147,8 @@ async def create_subscription(
                 detail=f"This plan is only available for {subscription_request.user_type}s"
             )
         
-        # Extract tier from plan name
-        tier = subscription_request.plan_name.lower().replace(' ', '_')
+        # Use the mapped plan identifier as the tier
+        tier = plan_identifier
         
         # Create subscription using the service
         subscription_service = get_subscription_service()
