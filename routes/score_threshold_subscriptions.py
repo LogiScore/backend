@@ -393,3 +393,73 @@ async def get_available_freight_forwarders(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve freight forwarders: {str(e)}"
         )
+
+@router.post("/{subscription_id}/toggle", response_model=ScoreThresholdSubscriptionResponse)
+async def toggle_score_threshold_subscription(
+    subscription_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Toggle the active status of a score threshold subscription"""
+    try:
+        # Get the subscription
+        subscription = db.query(ScoreThresholdSubscription).filter(
+            and_(
+                ScoreThresholdSubscription.id == subscription_id,
+                ScoreThresholdSubscription.user_id == current_user.id
+            )
+        ).first()
+        
+        if not subscription:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Score threshold subscription not found"
+            )
+        
+        # Check if subscription is expired
+        current_time = datetime.utcnow()
+        is_expired = subscription.expires_at and subscription.expires_at < current_time
+        
+        if is_expired:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot toggle expired subscription. Please renew your subscription to reactivate."
+            )
+        
+        # Toggle the active status
+        subscription.is_active = not subscription.is_active
+        subscription.updated_at = current_time
+        
+        db.commit()
+        db.refresh(subscription)
+        
+        # Get freight forwarder name for response
+        freight_forwarder = db.query(FreightForwarder).filter(
+            FreightForwarder.id == subscription.freight_forwarder_id
+        ).first()
+        
+        logger.info(f"Toggled score threshold subscription {subscription_id} to {'active' if subscription.is_active else 'inactive'} for user {current_user.id}")
+        
+        return ScoreThresholdSubscriptionResponse(
+            id=subscription.id,
+            user_id=subscription.user_id,
+            freight_forwarder_id=subscription.freight_forwarder_id,
+            freight_forwarder_name=freight_forwarder.name if freight_forwarder else "Unknown",
+            threshold_score=float(subscription.threshold_score),
+            notification_frequency=subscription.notification_frequency,
+            is_active=subscription.is_active,
+            expires_at=subscription.expires_at,
+            last_notification_sent=subscription.last_notification_sent,
+            created_at=subscription.created_at,
+            updated_at=subscription.updated_at
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to toggle score threshold subscription: {str(e)}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to toggle subscription: {str(e)}"
+        )
