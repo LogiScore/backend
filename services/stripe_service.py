@@ -17,7 +17,7 @@ class StripeService:
         stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
         
         # Stripe price IDs (configure these in Stripe dashboard)
-        # Updated to match actual Stripe products
+        # Updated to match actual Stripe products from frontend
         self.STRIPE_PRICE_IDS = {
             'free': None,
             'shipper_monthly': os.getenv('STRIPE_SHIPPER_MONTHLY_PRICE_ID'),
