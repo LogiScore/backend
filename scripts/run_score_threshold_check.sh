@@ -10,14 +10,15 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 # Change to project directory
 cd "$PROJECT_DIR"
 
-# Set environment variables for the script
-export DATABASE_URL="sqlite:///./test.db"
-export SENDGRID_API_KEY="your_sendgrid_api_key_here"
-export MAIL_FROM="noreply@logiscore.com"
-export MAIL_FROM_NAME="LogiScore"
-export LOG_LEVEL="INFO"
-export ENABLE_EMAIL_NOTIFICATIONS="True"
-export ENABLE_SUBSCRIPTION_MANAGEMENT="True"
+# Load environment variables from .env file
+if [ -f .env ]; then
+    export $(grep -v '^#' .env | xargs)
+    echo "Loaded environment variables from .env file"
+else
+    echo "Warning: .env file not found, using default values"
+fi
+
+# Environment variables are now loaded from .env file above
 
 # Create logs directory if it doesn't exist
 mkdir -p logs
