@@ -308,11 +308,19 @@ async def delete_score_threshold_subscription(
                 detail="Score threshold subscription not found"
             )
         
-        # Delete the subscription
+        # First, delete all related notifications
+        notifications = db.query(ScoreThresholdNotification).filter(
+            ScoreThresholdNotification.subscription_id == subscription_id
+        ).all()
+        
+        for notification in notifications:
+            db.delete(notification)
+        
+        # Then delete the subscription
         db.delete(subscription)
         db.commit()
         
-        logger.info(f"Deleted score threshold subscription {subscription_id} for user {current_user.id}")
+        logger.info(f"Deleted score threshold subscription {subscription_id} and {len(notifications)} related notifications for user {current_user.id}")
         
         return {"message": "Score threshold subscription deleted successfully"}
         

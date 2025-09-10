@@ -311,8 +311,20 @@ async def delete_subscription(
                 detail="Subscription not found"
             )
         
+        # First, delete all related notifications
+        from database.models import ReviewNotification
+        notifications = db.query(ReviewNotification).filter(
+            ReviewNotification.subscription_id == subscription_id
+        ).all()
+        
+        for notification in notifications:
+            db.delete(notification)
+        
+        # Then delete the subscription
         db.delete(subscription)
         db.commit()
+        
+        logger.info(f"Deleted review subscription {subscription_id} and {len(notifications)} related notifications for user {current_user.id}")
         
         return {"message": "Subscription deleted successfully"}
         
