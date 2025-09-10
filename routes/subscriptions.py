@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from typing import Optional, Dict
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 import logging
+import json
 import stripe
 
 from database.database import get_db
@@ -125,12 +126,33 @@ async def create_payment_intent(
 
 @router.post("/create", response_model=SubscriptionResponse)
 async def create_subscription(
-    subscription_request: SubscriptionRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Create a new subscription for the user"""
     try:
+        # Handle both regular JSON and stringified JSON from frontend
+        try:
+            # Try to get JSON data directly
+            body = await request.json()
+        except Exception:
+            # If that fails, try to parse as stringified JSON
+            body_text = await request.body()
+            try:
+                body = json.loads(body_text.decode('utf-8'))
+            except json.JSONDecodeError:
+                # If it's already a string, try to parse it as JSON
+                body_text_str = body_text.decode('utf-8')
+                if body_text_str.startswith('"') and body_text_str.endswith('"'):
+                    # Remove outer quotes and parse
+                    body = json.loads(body_text_str[1:-1])
+                else:
+                    body = json.loads(body_text_str)
+        
+        # Create SubscriptionRequest from parsed data
+        subscription_request = SubscriptionRequest(**body)
+        
         # Map numeric plan_id to string-based plan identifier
         if subscription_request.plan_id not in PLAN_ID_MAPPING:
             raise HTTPException(
