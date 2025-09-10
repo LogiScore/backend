@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from database.database import get_db, get_engine
 from database.models import Base
 from auth.auth import get_current_user, create_access_token
-from routes import users, freight_forwarders, reviews, search, subscriptions, auth, locations, email, admin, review_subscriptions, notifications, score_threshold_subscriptions
+from routes import users, freight_forwarders, reviews, search, subscriptions, auth, locations, email, admin, review_subscriptions, notifications, score_threshold_subscriptions, analytics
 
 # Load environment variables
 load_dotenv()
@@ -94,6 +94,7 @@ app.include_router(score_threshold_subscriptions.router, prefix="/api/threshold-
 app.include_router(locations.router, prefix="/api/locations", tags=["locations"])  # Locations API for frontend integration
 app.include_router(email.router, prefix="/api/email", tags=["email"])  # Email API for sending emails
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])  # Admin API for 8x7k9m2p dashboard
+app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"])  # Analytics API for score trends
 
 @app.get("/api/migrate-db")
 async def migrate_database():
