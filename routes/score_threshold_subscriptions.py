@@ -5,7 +5,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 from uuid import UUID
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from database.database import get_db
 from database.models import User, FreightForwarder, ScoreThresholdSubscription, ScoreThresholdNotification
@@ -13,6 +13,10 @@ from auth.auth import get_current_user
 
 router = APIRouter(tags=["score-threshold-subscriptions"])
 logger = logging.getLogger(__name__)
+
+def utc_now():
+    """Get current UTC datetime with timezone info"""
+    return datetime.now(timezone.utc)
 
 # Pydantic models for request/response
 class ScoreThresholdSubscriptionRequest(BaseModel):
@@ -161,14 +165,12 @@ async def get_user_score_threshold_subscriptions(
 ):
     """Get all score threshold subscriptions for the current user"""
     try:
-        from datetime import datetime
-        
         subscriptions = db.query(ScoreThresholdSubscription).filter(
             ScoreThresholdSubscription.user_id == current_user.id
         ).all()
         
         subscription_responses = []
-        current_time = datetime.utcnow()
+        current_time = utc_now()
         
         for subscription in subscriptions:
             # Check if subscription is expired
@@ -250,7 +252,7 @@ async def update_score_threshold_subscription(
         if update_request.is_active is not None:
             subscription.is_active = update_request.is_active
         
-        subscription.updated_at = datetime.utcnow()
+        subscription.updated_at = utc_now()
         
         db.commit()
         db.refresh(subscription)
@@ -435,7 +437,7 @@ async def toggle_score_threshold_subscription(
             )
         
         # Check if subscription is expired
-        current_time = datetime.utcnow()
+        current_time = utc_now()
         is_expired = subscription.expires_at and subscription.expires_at < current_time
         
         if is_expired:
