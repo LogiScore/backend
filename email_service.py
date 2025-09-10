@@ -1960,6 +1960,7 @@ class EmailService:
         to_email: str, 
         user_name: str, 
         freight_forwarder_name: str,
+        freight_forwarder_id: str,
         current_score: float,
         threshold_score: float,
         subscription_expires_at: Optional[datetime] = None
@@ -2104,7 +2105,7 @@ class EmailService:
                     </ul>
                     
                     <div style="text-align: center;">
-                        <a href="https://logiscore.net/dashboard" class="action-button">View Dashboard</a>
+                        <a href="https://logiscore.net/freight-forwarders/{freight_forwarder_id}" class="action-button">View {freight_forwarder_name}</a>
                     </div>
                     
                     {expiry_text}

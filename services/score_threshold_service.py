@@ -189,6 +189,7 @@ class ScoreThresholdService:
                 to_email=user.email,
                 user_name=user.full_name or user.username or "User",
                 freight_forwarder_name=freight_forwarder.name,
+                freight_forwarder_id=str(freight_forwarder.id),
                 current_score=current_score,
                 threshold_score=subscription.threshold_score,
                 subscription_expires_at=subscription.expires_at
