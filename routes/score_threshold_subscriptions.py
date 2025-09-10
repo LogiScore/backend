@@ -17,8 +17,19 @@ logger = logging.getLogger(__name__)
 # Pydantic models for request/response
 class ScoreThresholdSubscriptionRequest(BaseModel):
     freight_forwarder_id: UUID
-    threshold_score: float = Field(..., ge=0.0, le=5.0, description="Score threshold between 0 and 5")
+    threshold_score: Optional[float] = Field(None, ge=0.0, le=5.0, description="Score threshold between 0 and 5")
+    threshold_value: Optional[float] = Field(None, ge=0.0, le=5.0, description="Score threshold value (alternative to threshold_score)")
+    threshold_type: Optional[str] = Field(None, description="Threshold type (for frontend compatibility)")
+    freight_forwarder_name: Optional[str] = Field(None, description="Freight forwarder name (for frontend compatibility)")
     notification_frequency: str = Field(default="immediate", description="Notification frequency: immediate, daily, or weekly")
+    
+    def __init__(self, **data):
+        super().__init__(**data)
+        # Use threshold_value if threshold_score is not provided (frontend compatibility)
+        if self.threshold_score is None and self.threshold_value is not None:
+            self.threshold_score = self.threshold_value
+        elif self.threshold_score is None:
+            raise ValueError("Either threshold_score or threshold_value must be provided")
 
 class ScoreThresholdSubscriptionResponse(BaseModel):
     id: UUID
@@ -94,6 +105,13 @@ async def create_score_threshold_subscription(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid notification frequency. Must be one of: {', '.join(valid_frequencies)}"
+            )
+        
+        # Ensure threshold_score is set (from either threshold_score or threshold_value)
+        if subscription_request.threshold_score is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Either threshold_score or threshold_value must be provided"
             )
         
         # Create the subscription
