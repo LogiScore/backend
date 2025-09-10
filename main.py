@@ -90,6 +90,7 @@ app.include_router(subscriptions.router, prefix="/api/subscriptions", tags=["sub
 app.include_router(review_subscriptions.router, prefix="/api/review-subscriptions", tags=["review-subscriptions"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])  # Notification system endpoints
 app.include_router(score_threshold_subscriptions.router, prefix="/api/score-threshold-subscriptions", tags=["score-threshold-subscriptions"])  # Score threshold notification system
+app.include_router(score_threshold_subscriptions.router, prefix="/api/threshold-subscriptions", tags=["threshold-subscriptions"])  # Alias for frontend compatibility
 app.include_router(locations.router, prefix="/api/locations", tags=["locations"])  # Locations API for frontend integration
 app.include_router(email.router, prefix="/api/email", tags=["email"])  # Email API for sending emails
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])  # Admin API for 8x7k9m2p dashboard
