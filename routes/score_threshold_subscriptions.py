@@ -366,6 +366,142 @@ async def get_score_threshold_notifications(
             detail=f"Failed to retrieve notifications: {str(e)}"
         )
 
+@router.delete("/notifications/{notification_id}")
+async def delete_score_threshold_notification(
+    notification_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a specific score threshold notification"""
+    try:
+        # Get the notification
+        notification = db.query(ScoreThresholdNotification).filter(
+            and_(
+                ScoreThresholdNotification.id == notification_id,
+                ScoreThresholdNotification.user_id == current_user.id
+            )
+        ).first()
+        
+        if not notification:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Score threshold notification not found"
+            )
+        
+        # Delete the notification
+        db.delete(notification)
+        db.commit()
+        
+        logger.info(f"Deleted score threshold notification {notification_id} for user {current_user.id}")
+        
+        return {"message": "Score threshold notification deleted successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete score threshold notification: {str(e)}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete notification: {str(e)}"
+        )
+
+@router.delete("/notifications")
+async def delete_multiple_score_threshold_notifications(
+    request: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete multiple score threshold notifications"""
+    try:
+        # Handle different request formats
+        notification_ids = []
+        
+        if isinstance(request, list):
+            # Direct list of UUIDs
+            notification_ids = request
+        elif isinstance(request, dict):
+            # Check for different possible keys
+            if 'notification_ids' in request:
+                notification_ids = request['notification_ids']
+            elif 'score_threshold_notifications_id' in request:
+                # Handle the format from the error message
+                notification_ids = [request['score_threshold_notifications_id']]
+            elif 'notifications' in request:
+                notification_ids = request['notifications']
+            else:
+                # Try to extract UUIDs from the request
+                for key, value in request.items():
+                    if isinstance(value, str) and len(value) == 36:  # UUID string length
+                        try:
+                            notification_ids.append(UUID(value))
+                        except ValueError:
+                            continue
+        
+        if not notification_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No notification IDs provided"
+            )
+        
+        # Ensure all IDs are UUIDs
+        try:
+            notification_ids = [UUID(str(id)) for id in notification_ids]
+        except (ValueError, TypeError) as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid notification ID format: {str(e)}"
+            )
+        
+        # Get the notifications
+        notifications = db.query(ScoreThresholdNotification).filter(
+            and_(
+                ScoreThresholdNotification.id.in_(notification_ids),
+                ScoreThresholdNotification.user_id == current_user.id
+            )
+        ).all()
+        
+        if not notifications:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No score threshold notifications found"
+            )
+        
+        # Delete the notifications
+        deleted_count = 0
+        for notification in notifications:
+            db.delete(notification)
+            deleted_count += 1
+        
+        db.commit()
+        
+        logger.info(f"Deleted {deleted_count} score threshold notifications for user {current_user.id}")
+        
+        return {
+            "message": f"Successfully deleted {deleted_count} score threshold notifications",
+            "deleted_count": deleted_count
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete score threshold notifications: {str(e)}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete notifications: {str(e)}"
+        )
+
+@router.post("/notifications/delete")
+async def delete_multiple_score_threshold_notifications_post(
+    request: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete multiple score threshold notifications via POST"""
+    # Reuse the same logic as the DELETE endpoint
+    return await delete_multiple_score_threshold_notifications(request, current_user, db)
+
 @router.get("/available-forwarders", response_model=List[dict])
 async def get_available_freight_forwarders(
     current_user: User = Depends(get_current_user),
