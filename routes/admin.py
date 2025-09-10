@@ -232,6 +232,15 @@ class AnalyticsData(BaseModel):
     revenue_metrics: dict
     top_companies: List[dict]
 
+class ScoreThresholdCheckResponse(BaseModel):
+    success: bool
+    message: str
+    processed_forwarders: int
+    notifications_sent: int
+    errors: int
+    expired_subscriptions_cleaned: int
+    generated_at: str
+
 # Helper function to check if user is admin
 async def get_admin_user(current_user: User = Depends(get_current_user)):
     print(f"DEBUG: get_admin_user called with user: {current_user.email}, type: {current_user.user_type}")  # Debug log
@@ -1643,4 +1652,85 @@ async def cron_daily_summary(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to run daily summary: {str(e)}"
+        )
+
+@router.post("/score-threshold-check", response_model=ScoreThresholdCheckResponse)
+async def trigger_score_threshold_check(
+    admin_user: User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Admin endpoint to manually trigger score threshold check"""
+    try:
+        from services.score_threshold_service import score_threshold_service
+        
+        logger.info("Admin triggered score threshold check")
+        
+        # Step 1: Clean up expired subscriptions
+        expired_count = await score_threshold_service.cleanup_expired_subscriptions(db)
+        
+        # Step 2: Process all score thresholds
+        results = await score_threshold_service.process_all_score_thresholds(db)
+        
+        return ScoreThresholdCheckResponse(
+            success=True,
+            message="Score threshold check completed successfully",
+            processed_forwarders=results['processed_forwarders'],
+            notifications_sent=results['notifications_sent'],
+            errors=results['errors'],
+            expired_subscriptions_cleaned=expired_count,
+            generated_at=datetime.utcnow().isoformat()
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to trigger score threshold check: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to trigger score threshold check: {str(e)}"
+        )
+
+@router.post("/cron/score-threshold-check")
+async def cron_score_threshold_check(
+    cron_secret: str,
+    db: Session = Depends(get_db)
+):
+    """Public endpoint for external cron services to trigger score threshold check"""
+    try:
+        import os
+        
+        # Check if the secret matches the environment variable
+        expected_secret = os.getenv("CRON_SECRET_KEY", "default-secret-change-me")
+        if cron_secret != expected_secret:
+            logger.warning(f"Invalid cron secret attempted: {cron_secret[:10]}...")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid cron secret"
+            )
+        
+        from services.score_threshold_service import score_threshold_service
+        
+        logger.info("External cron triggered score threshold check")
+        
+        # Step 1: Clean up expired subscriptions
+        expired_count = await score_threshold_service.cleanup_expired_subscriptions(db)
+        
+        # Step 2: Process all score thresholds
+        results = await score_threshold_service.process_all_score_thresholds(db)
+        
+        return {
+            "success": True,
+            "message": "Score threshold check completed",
+            "processed_forwarders": results['processed_forwarders'],
+            "notifications_sent": results['notifications_sent'],
+            "errors": results['errors'],
+            "expired_subscriptions_cleaned": expired_count,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to run cron score threshold check: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to run score threshold check: {str(e)}"
         ) 
