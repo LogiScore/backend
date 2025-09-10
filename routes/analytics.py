@@ -27,7 +27,8 @@ def is_cache_valid(cache_entry: dict) -> bool:
     if not cache_entry:
         return False
     cache_time = cache_entry.get('timestamp', 0)
-    return (datetime.now().timestamp() - cache_time) < _cache_ttl
+    from datetime import timezone
+    return (datetime.now(timezone.utc).timestamp() - cache_time) < _cache_ttl
 
 def get_cached_data(cache_key: str) -> Optional[dict]:
     """Get data from cache if valid"""
@@ -38,9 +39,10 @@ def get_cached_data(cache_key: str) -> Optional[dict]:
 
 def set_cached_data(cache_key: str, data: dict) -> None:
     """Store data in cache with timestamp"""
+    from datetime import timezone
     _cache[cache_key] = {
         'data': data,
-        'timestamp': datetime.now().timestamp()
+        'timestamp': datetime.now(timezone.utc).timestamp()
     }
 
 def validate_annual_subscription(user: User) -> bool:
@@ -55,16 +57,18 @@ def validate_annual_subscription(user: User) -> bool:
     is_active = user.subscription_status in ['active', 'trial']
     
     # Check if subscription hasn't expired
+    from datetime import timezone
     is_not_expired = (
         user.subscription_end_date is None or 
-        user.subscription_end_date > datetime.now()
+        user.subscription_end_date > datetime.now(timezone.utc)
     )
     
     return is_annual and is_active and is_not_expired
 
 def calculate_period_dates(period: str) -> tuple:
     """Calculate start and end dates based on period"""
-    now = datetime.now()
+    from datetime import timezone
+    now = datetime.now(timezone.utc)
     
     if period == "6m":
         start_date = now - timedelta(days=180)  # 6 months
