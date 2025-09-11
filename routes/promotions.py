@@ -475,3 +475,45 @@ async def test_database_operations(
             "error": str(e),
             "traceback": traceback.format_exc()
         }
+
+@router.post("/test-direct-award/{user_id}/{review_id}")
+async def test_direct_award(
+    user_id: str,
+    review_id: str,
+    db: Session = Depends(get_db)
+):
+    """Test direct award without eligibility check (no auth required)"""
+    try:
+        promotion_service = PromotionService(db)
+        
+        # Bypass eligibility check and award directly
+        success = promotion_service.award_user_reward(
+            user_id=user_id,
+            review_id=review_id,
+            months=1
+        )
+        
+        # Check if reward was actually created
+        reward = db.query(UserReward).filter(
+            UserReward.user_id == user_id,
+            UserReward.review_id == review_id
+        ).first()
+        
+        # Get updated user info
+        user = db.query(User).filter(User.id == user_id).first()
+        
+        return {
+            "success": success,
+            "reward_created": reward is not None,
+            "reward_id": reward.id if reward else None,
+            "user_subscription_end_date": user.subscription_end_date.isoformat() if user and user.subscription_end_date else None,
+            "user_subscription_status": user.subscription_status if user else None,
+            "message": "Direct award successful" if success and reward else "Direct award failed"
+        }
+    except Exception as e:
+        import traceback
+        return {
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
