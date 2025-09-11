@@ -69,6 +69,17 @@ PLAN_ID_MAPPING = {
     7: "Forwarder Annual Plus"   # Forwarder annual plus
 }
 
+# Stripe tier mapping - maps numeric IDs to Stripe-compatible tier names
+STRIPE_TIER_MAPPING = {
+    1: "free",                   # Free shipper plan
+    2: "shipper_monthly",        # Shipper monthly
+    3: "shipper_annual",         # Shipper annual
+    4: "free",                   # Free forwarder plan
+    5: "forwarder_monthly",      # Forwarder monthly
+    6: "forwarder_annual",       # Forwarder annual
+    7: "forwarder_annual_plus"   # Forwarder annual plus
+}
+
 class AutoRenewalToggleRequest(BaseModel):
     auto_renew_enabled: bool
 
@@ -162,7 +173,11 @@ async def create_subscription(
                 detail=f"Invalid plan ID: {subscription_request.plan_id}"
             )
         
-        plan_identifier = PLAN_ID_MAPPING[subscription_request.plan_id]
+        # Get display name for database storage
+        display_name = PLAN_ID_MAPPING[subscription_request.plan_id]
+        
+        # Get Stripe-compatible tier name for subscription creation
+        stripe_tier = STRIPE_TIER_MAPPING[subscription_request.plan_id]
         
         # Validate user type matches plan type
         if current_user.user_type != subscription_request.user_type:
@@ -171,20 +186,26 @@ async def create_subscription(
                 detail=f"This plan is only available for {subscription_request.user_type}s"
             )
         
-        # Use the mapped plan identifier as the tier
-        tier = plan_identifier
+        # Use the Stripe-compatible tier for subscription creation
+        tier = stripe_tier
         
         # Create subscription using the service
         subscription_service = get_subscription_service()
         subscription_result = await subscription_service.create_subscription(
             user_id=str(current_user.id),
-            tier=tier,
+            tier=tier,  # Stripe-compatible tier for subscription creation
             user_type=current_user.user_type,
             payment_method_id=subscription_request.payment_method_id,
             trial_days=subscription_request.trial_days,
             is_paid=subscription_request.payment_method_id is not None,
             db=db
         )
+        
+        # Update the database with the display name after subscription creation
+        user = db.query(User).filter(User.id == current_user.id).first()
+        if user:
+            user.subscription_tier = display_name  # Store display name in database
+            db.commit()
         
         return SubscriptionResponse(
             subscription_id=subscription_result['subscription_id'],
