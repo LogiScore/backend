@@ -369,3 +369,33 @@ async def debug_user_promotion_status_public(
     except Exception as e:
         logger.error(f"Error debugging user promotion status: {e}")
         return {"error": f"Debug failed: {str(e)}"}
+
+@router.post("/test-award/{user_id}/{review_id}")
+async def test_award_reward(
+    user_id: str,
+    review_id: str,
+    db: Session = Depends(get_db)
+):
+    """Test endpoint to manually award a reward (no auth required)"""
+    try:
+        promotion_service = PromotionService(db)
+        
+        # Check eligibility first
+        eligibility = promotion_service.check_user_eligibility(user_id)
+        print(f"Eligibility check: {eligibility}")
+        
+        # Try to award the reward
+        success = promotion_service.award_user_reward(
+            user_id=user_id,
+            review_id=review_id,
+            months=1
+        )
+        
+        return {
+            "success": success,
+            "eligibility": eligibility,
+            "message": "Reward awarded successfully" if success else "Failed to award reward"
+        }
+    except Exception as e:
+        logger.error(f"Error testing award: {e}")
+        return {"error": f"Test failed: {str(e)}"}
