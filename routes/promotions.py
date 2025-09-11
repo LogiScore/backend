@@ -517,3 +517,76 @@ async def test_direct_award(
             "error": str(e),
             "traceback": traceback.format_exc()
         }
+
+@router.post("/test-manual-award/{user_id}/{review_id}")
+async def test_manual_award(
+    user_id: str,
+    review_id: str,
+    db: Session = Depends(get_db)
+):
+    """Test manual award using direct database operations (no auth required)"""
+    try:
+        from datetime import datetime, timedelta
+        
+        # Get user
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return {"error": "User not found"}
+        
+        # Get review
+        review = db.query(Review).filter(Review.id == review_id).first()
+        if not review:
+            return {"error": "Review not found"}
+        
+        # Check if reward already exists
+        existing_reward = db.query(UserReward).filter(
+            UserReward.user_id == user_id,
+            UserReward.review_id == review_id
+        ).first()
+        if existing_reward:
+            return {"error": "Reward already exists", "reward_id": existing_reward.id}
+        
+        # Create reward manually
+        reward = UserReward(
+            user_id=user_id,
+            review_id=review_id,
+            months_awarded=1,
+            awarded_by=None
+        )
+        db.add(reward)
+        
+        # Extend subscription manually
+        current_end_date = user.subscription_end_date
+        if current_end_date and current_end_date > datetime.utcnow():
+            new_end_date = current_end_date + timedelta(days=30)
+        else:
+            new_end_date = datetime.utcnow() + timedelta(days=30)
+        
+        user.subscription_end_date = new_end_date
+        user.subscription_status = 'active'
+        
+        # Commit everything
+        db.commit()
+        
+        # Verify reward was created
+        created_reward = db.query(UserReward).filter(
+            UserReward.user_id == user_id,
+            UserReward.review_id == review_id
+        ).first()
+        
+        return {
+            "success": True,
+            "reward_created": created_reward is not None,
+            "reward_id": created_reward.id if created_reward else None,
+            "user_subscription_end_date": user.subscription_end_date.isoformat(),
+            "user_subscription_status": user.subscription_status,
+            "message": "Manual award successful"
+        }
+    except Exception as e:
+        db.rollback()
+        import traceback
+        return {
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
