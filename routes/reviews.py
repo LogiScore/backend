@@ -338,10 +338,19 @@ async def create_review(
                 try:
                     from services.promotion_service import PromotionService
                     promotion_service = PromotionService(db)
+                    
+                    logger.info(f"🔍 Checking promotion reward for user {current_user['id']} and review {review.id}")
+                    
+                    # Debug: Check eligibility first
+                    eligibility = promotion_service.check_user_eligibility(str(current_user["id"]))
+                    logger.info(f"📊 User eligibility: {eligibility}")
+                    
                     reward_awarded = promotion_service.check_and_award_promotion_reward(
                         user_id=str(current_user["id"]),
                         review_id=str(review.id)
                     )
+                    
+                    logger.info(f"🎁 Promotion reward result: {reward_awarded}")
                     
                     if reward_awarded:
                         logger.info(f"Promotion reward awarded to user {current_user['id']} for review {review.id}")

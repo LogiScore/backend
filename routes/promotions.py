@@ -244,3 +244,65 @@ async def send_reward_notification(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to send reward notification"
         )
+
+@router.get("/debug/user/{user_id}")
+async def debug_user_promotion_status(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    """Debug endpoint to check user's promotion status"""
+    try:
+        promotion_service = PromotionService(db)
+        
+        # Get user details
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return {"error": "User not found"}
+        
+        # Check eligibility
+        eligibility = promotion_service.check_user_eligibility(user_id)
+        
+        # Get user's rewards
+        user_rewards = db.query(UserReward).filter(UserReward.user_id == user_id).all()
+        
+        # Get user's reviews
+        user_reviews = db.query(Review).filter(Review.user_id == user_id).all()
+        
+        return {
+            "user_id": user_id,
+            "user_email": user.email,
+            "user_name": user.full_name,
+            "subscription_status": user.subscription_status,
+            "subscription_end_date": user.subscription_end_date.isoformat() if user.subscription_end_date else None,
+            "eligibility": eligibility,
+            "user_rewards": [
+                {
+                    "id": reward.id,
+                    "review_id": str(reward.review_id),
+                    "months_awarded": reward.months_awarded,
+                    "awarded_at": reward.awarded_at.isoformat() if reward.awarded_at else None
+                }
+                for reward in user_rewards
+            ],
+            "user_reviews": [
+                {
+                    "id": str(review.id),
+                    "freight_forwarder_id": str(review.freight_forwarder_id),
+                    "created_at": review.created_at.isoformat() if review.created_at else None,
+                    "is_anonymous": review.is_anonymous
+                }
+                for review in user_reviews
+            ],
+            "promotion_config": {
+                "is_active": promotion_service.get_promotion_config().is_active,
+                "max_rewards_per_user": promotion_service.get_promotion_config().max_rewards_per_user,
+                "reward_months": promotion_service.get_promotion_config().reward_months
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error debugging user promotion status: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Debug failed: {str(e)}"
+        )
