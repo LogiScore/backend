@@ -358,6 +358,12 @@ async def create_review(
                                 total_rewards = eligibility.get("currentRewards", 0)
                                 max_rewards = eligibility.get("maxRewards", 3)
                                 
+                                # Get user's updated subscription info
+                                updated_user = db.query(User).filter(User.id == current_user["id"]).first()
+                                subscription_info = ""
+                                if updated_user and updated_user.subscription_end_date:
+                                    subscription_info = f"Your subscription is now active until {updated_user.subscription_end_date.strftime('%B %d, %Y')}"
+                                
                                 await email_service.send_reward_notification_email(
                                     user_email=user_email,
                                     user_name=user_name,
@@ -366,6 +372,7 @@ async def create_review(
                                     max_rewards=max_rewards
                                 )
                                 logger.info(f"Reward notification email sent to {user_email}")
+                                logger.info(f"User subscription extended: {subscription_info}")
                         except Exception as e:
                             logger.error(f"Failed to send reward notification email: {str(e)}")
                     else:

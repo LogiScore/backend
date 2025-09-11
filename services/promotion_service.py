@@ -79,7 +79,7 @@ class PromotionService:
             return []
     
     def award_user_reward(self, user_id: str, review_id: str, months: int, awarded_by: str = None) -> bool:
-        """Award a reward to a user"""
+        """Award a reward to a user and extend their subscription"""
         try:
             # Check if user exists
             user = self.db.query(User).filter(User.id == user_id).first()
@@ -93,6 +93,22 @@ class PromotionService:
                 logger.error(f"Review {review_id} not found")
                 return False
             
+            # Extend user's subscription
+            from datetime import datetime, timedelta
+            
+            # Calculate new end date
+            current_end_date = user.subscription_end_date
+            if current_end_date and current_end_date > datetime.utcnow():
+                # User has active subscription, extend from current end date
+                new_end_date = current_end_date + timedelta(days=months * 30)
+            else:
+                # User has no active subscription, start from now
+                new_end_date = datetime.utcnow() + timedelta(days=months * 30)
+            
+            # Update user's subscription
+            user.subscription_end_date = new_end_date
+            user.subscription_status = 'active'  # Ensure status is active
+            
             # Create reward record
             reward = UserReward(
                 user_id=user_id,
@@ -105,6 +121,7 @@ class PromotionService:
             self.db.commit()
             
             logger.info(f"Reward awarded: {months} months to user {user_id} for review {review_id}")
+            logger.info(f"User {user_id} subscription extended to {new_end_date}")
             return True
         except Exception as e:
             logger.error(f"Error awarding user reward: {e}")
