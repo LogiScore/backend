@@ -2622,5 +2622,159 @@ class EmailService:
             logger.info(f"FALLBACK: Auto-renewal toggle notification would be sent to {to_email}")
             return True  # Return True for fallback mode
 
+    async def send_subscription_confirmation(self, user_id: str, subscription_data: dict) -> bool:
+        """Send subscription confirmation email"""
+        try:
+            if not self.api_key:
+                logger.info(f"FALLBACK: Subscription confirmation would be sent to user {user_id}")
+                return True
+            
+            # Get user details from database
+            from database.database import get_db
+            from database.models import User
+            
+            db = next(get_db())
+            user = db.query(User).filter(User.id == user_id).first()
+            
+            if not user:
+                logger.error(f"User {user_id} not found for subscription confirmation")
+                return False
+            
+            tier = subscription_data.get('tier', 'Unknown')
+            start_date = subscription_data.get('start_date')
+            end_date = subscription_data.get('end_date')
+            status = subscription_data.get('status', 'active')
+            
+            # Format dates
+            start_date_str = start_date.strftime('%B %d, %Y') if start_date else 'N/A'
+            end_date_str = end_date.strftime('%B %d, %Y') if end_date else 'N/A'
+            
+            # Determine plan name
+            plan_names = {
+                1: 'Free Shipper',
+                2: 'Shipper Monthly',
+                3: 'Shipper Annual',
+                4: 'Free Forwarder',
+                5: 'Forwarder Monthly',
+                6: 'Forwarder Annual',
+                7: 'Forwarder Annual Plus'
+            }
+            plan_name = plan_names.get(tier, f'Plan {tier}')
+            
+            subject = f"🎉 Subscription Confirmed - {plan_name} - LogiScore"
+            
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Subscription Confirmed - LogiScore</title>
+                <style>
+                    body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }}
+                    .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                    .header {{ background: #28a745; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }}
+                    .content {{ background: #f8f9fa; padding: 30px; border-radius: 0 0 8px 8px; }}
+                    .subscription-info {{ background: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 4px; margin: 20px 0; }}
+                    .cta-button {{ display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; margin: 20px 0; }}
+                    .footer {{ text-align: center; color: #666; font-size: 12px; margin-top: 30px; }}
+                    .highlight {{ font-weight: bold; color: #155724; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>🎉 Subscription Confirmed!</h1>
+                    </div>
+                    
+                    <div class="content">
+                        <p>Hi {user.full_name or 'User'},</p>
+                        
+                        <p>Great news! Your LogiScore subscription has been successfully activated.</p>
+                        
+                        <div class="subscription-info">
+                            <h3>Subscription Details:</h3>
+                            <p><strong>Plan:</strong> {plan_name}</p>
+                            <p><strong>Status:</strong> <span class="highlight">{status.title()}</span></p>
+                            <p><strong>Start Date:</strong> {start_date_str}</p>
+                            <p><strong>End Date:</strong> {end_date_str}</p>
+                        </div>
+                        
+                        <p>You now have access to all the features included in your {plan_name} plan. Start exploring LogiScore and make the most of your subscription!</p>
+                        
+                        <div style="text-align: center;">
+                            <a href="https://logiscore.net/dashboard" class="cta-button">Go to Dashboard</a>
+                        </div>
+                        
+                        <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
+                        
+                        <p>Welcome to LogiScore!</p>
+                        
+                        <p>Best regards,<br>The LogiScore Team</p>
+                    </div>
+                    
+                    <div class="footer">
+                        <p>This email was sent to {user.email}. If you have any questions, please contact us at support@logiscore.net</p>
+                        <p>&copy; 2024 LogiScore. All rights reserved.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            text_content = f"""
+            Subscription Confirmed - LogiScore
+            
+            Hi {user.full_name or 'User'},
+            
+            Great news! Your LogiScore subscription has been successfully activated.
+            
+            Subscription Details:
+            - Plan: {plan_name}
+            - Status: {status.title()}
+            - Start Date: {start_date_str}
+            - End Date: {end_date_str}
+            
+            You now have access to all the features included in your {plan_name} plan. 
+            Start exploring LogiScore and make the most of your subscription!
+            
+            Go to Dashboard: https://logiscore.net/dashboard
+            
+            If you have any questions or need assistance, please don't hesitate to contact our support team.
+            
+            Welcome to LogiScore!
+            
+            Best regards,
+            The LogiScore Team
+            
+            ---
+            This email was sent to {user.email}. If you have any questions, please contact us at support@logiscore.net
+            © 2024 LogiScore. All rights reserved.
+            """
+            
+            # Send email using SendGrid
+            sg = SendGridAPIClient(self.api_key)
+            message = Mail(
+                from_email=Email(self.from_email, self.from_name),
+                to_emails=user.email,
+                subject=subject,
+                plain_text_content=text_content,
+                html_content=html_content
+            )
+            
+            response = sg.send(message)
+            
+            if response.status_code == 202:
+                logger.info(f"Subscription confirmation sent successfully to {user.email}")
+                return True
+            else:
+                logger.error(f"Failed to send subscription confirmation to {user.email}. Status code: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error sending subscription confirmation to user {user_id}: {str(e)}")
+            logger.info(f"FALLBACK: Subscription confirmation would be sent to user {user_id}")
+            return True  # Return True for fallback mode
+
 # Create singleton instance
 email_service = EmailService()
