@@ -556,11 +556,14 @@ async def test_manual_award(
         db.add(reward)
         
         # Extend subscription manually
+        from datetime import timezone
         current_end_date = user.subscription_end_date
-        if current_end_date and current_end_date > datetime.utcnow():
+        now_utc = datetime.now(timezone.utc)
+        
+        if current_end_date and current_end_date > now_utc:
             new_end_date = current_end_date + timedelta(days=30)
         else:
-            new_end_date = datetime.utcnow() + timedelta(days=30)
+            new_end_date = now_utc + timedelta(days=30)
         
         user.subscription_end_date = new_end_date
         user.subscription_status = 'active'

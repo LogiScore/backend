@@ -103,14 +103,17 @@ class PromotionService:
             logger.info(f"📅 Current subscription end date: {user.subscription_end_date}")
             
             # Calculate new end date
+            from datetime import timezone
             current_end_date = user.subscription_end_date
-            if current_end_date and current_end_date > datetime.utcnow():
+            now_utc = datetime.now(timezone.utc)
+            
+            if current_end_date and current_end_date > now_utc:
                 # User has active subscription, extend from current end date
                 new_end_date = current_end_date + timedelta(days=months * 30)
                 logger.info(f"📅 Extending from current end date: {new_end_date}")
             else:
                 # User has no active subscription, start from now
-                new_end_date = datetime.utcnow() + timedelta(days=months * 30)
+                new_end_date = now_utc + timedelta(days=months * 30)
                 logger.info(f"📅 Starting new subscription from now: {new_end_date}")
             
             # Update user's subscription
