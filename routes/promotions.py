@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from database.database import get_db
 from auth.auth import get_current_user
-from database.models import User
+from database.models import User, UserReward, Review
 from services.promotion_service import PromotionService
 from pydantic import BaseModel
 from typing import List, Dict, Optional
