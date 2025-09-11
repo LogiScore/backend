@@ -60,11 +60,13 @@ class SubscriptionCancelRequest(BaseModel):
 
 # Plan ID mapping - maps numeric IDs from frontend to string-based plan identifiers
 PLAN_ID_MAPPING = {
-    1: "shipper_monthly",
-    2: "shipper_annual", 
-    3: "forwarder_monthly",
-    4: "forwarder_annual",
-    5: "forwarder_annual_plus"
+    1: "shipper_free",           # Free shipper plan
+    2: "shipper_monthly",        # Shipper monthly
+    3: "shipper_annual",         # Shipper annual
+    4: "forwarder_free",         # Free forwarder plan
+    5: "forwarder_monthly",      # Forwarder monthly
+    6: "forwarder_annual",       # Forwarder annual
+    7: "forwarder_annual_plus"   # Forwarder annual plus
 }
 
 class AutoRenewalToggleRequest(BaseModel):

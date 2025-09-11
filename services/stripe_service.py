@@ -20,8 +20,10 @@ class StripeService:
         # Updated to match actual Stripe products from frontend
         self.STRIPE_PRICE_IDS = {
             'free': None,
+            'shipper_free': None,  # Free plan - no Stripe price needed
             'shipper_monthly': os.getenv('STRIPE_SHIPPER_MONTHLY_PRICE_ID'),
             'shipper_annual': os.getenv('STRIPE_SHIPPER_ANNUAL_PRICE_ID'),
+            'forwarder_free': None,  # Free plan - no Stripe price needed
             'forwarder_monthly': os.getenv('STRIPE_FORWARDER_MONTHLY_PRICE_ID'),
             'forwarder_annual': os.getenv('STRIPE_FORWARDER_ANNUAL_PRICE_ID'),
             'forwarder_annual_plus': os.getenv('STRIPE_FORWARDER_ANNUAL_PLUS_PRICE_ID')
