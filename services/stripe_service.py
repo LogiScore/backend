@@ -105,6 +105,14 @@ class StripeService:
             logger.error(f"Failed to cancel subscription: {str(e)}")
             raise Exception(f"Failed to cancel subscription: {str(e)}")
     
+    async def delete_subscription(self, subscription_id: str) -> Dict[str, Any]:
+        """Immediately delete/cancel Stripe subscription"""
+        try:
+            return self.stripe.Subscription.delete(subscription_id)
+        except stripe.error.StripeError as e:
+            logger.error(f"Failed to delete subscription: {str(e)}")
+            raise Exception(f"Failed to delete subscription: {str(e)}")
+    
     async def reactivate_subscription(self, subscription_id: str) -> Dict[str, Any]:
         """Reactivate canceled subscription"""
         try:

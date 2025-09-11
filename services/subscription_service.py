@@ -121,20 +121,78 @@ class SubscriptionService:
                 db = next(get_db())
             
             user = db.query(User).filter(User.id == user_id).first()
-            # Temporarily commented out until migration
-            # if not user or not user.stripe_subscription_id:
-            #     raise Exception("No active subscription found")
             if not user:
                 raise Exception("User not found")
             
-            # Update database directly
             logger.info(f"Before update - User {user_id}: status={user.subscription_status}, tier={user.subscription_tier}, auto_renew={user.auto_renew_enabled}, end_date={user.subscription_end_date}")
             
-            user.subscription_status = 'canceled'
-            user.subscription_tier = 'free'  # Downgrade to free tier when canceled
-            user.auto_renew_enabled = False
-            user.subscription_start_date = None  # Clear start date when canceled
-            user.subscription_end_date = None    # Clear end date when canceled
+            # Determine cancellation strategy based on subscription type
+            is_trial_user = user.subscription_status == 'trial'
+            is_free_user = user.subscription_tier == 'free' or user.subscription_tier == 'shipper_free' or user.subscription_tier == 'forwarder_free'
+            has_paid_subscription = (
+                user.subscription_status == 'active' and 
+                user.stripe_subscription_id is not None and 
+                not is_free_user
+            )
+            
+            if is_trial_user:
+                # Trial users: Cancel immediately (delete Stripe subscription if exists)
+                logger.info(f"Trial user cancellation - immediately canceling for user {user_id}")
+                
+                if user.stripe_subscription_id:
+                    try:
+                        logger.info(f"Deleting trial Stripe subscription {user.stripe_subscription_id} for user {user_id}")
+                        await self.stripe_service.delete_subscription(user.stripe_subscription_id)
+                        logger.info(f"Successfully deleted trial Stripe subscription {user.stripe_subscription_id}")
+                    except Exception as stripe_error:
+                        logger.error(f"Failed to delete trial Stripe subscription {user.stripe_subscription_id}: {str(stripe_error)}")
+                        # Continue with database update even if Stripe deletion fails
+                
+                # Immediate cancellation for trial users
+                user.subscription_status = 'canceled'
+                user.subscription_tier = 'free'
+                user.auto_renew_enabled = False
+                user.subscription_start_date = None
+                user.subscription_end_date = None
+                user.stripe_subscription_id = None
+                
+            elif has_paid_subscription:
+                # Paid users: Disable auto-renewal but keep access until period end
+                logger.info(f"Paid subscription cancellation - disabling auto-renewal for user {user_id}")
+                
+                if user.stripe_subscription_id:
+                    try:
+                        logger.info(f"Disabling auto-renewal for Stripe subscription {user.stripe_subscription_id} for user {user_id}")
+                        await self.stripe_service.cancel_subscription(user.stripe_subscription_id)  # This sets cancel_at_period_end=True
+                        logger.info(f"Successfully disabled auto-renewal for Stripe subscription {user.stripe_subscription_id}")
+                    except Exception as stripe_error:
+                        logger.error(f"Failed to disable auto-renewal for Stripe subscription {user.stripe_subscription_id}: {str(stripe_error)}")
+                        # Continue with database update even if Stripe update fails
+                
+                # Disable auto-renewal but keep access until period end
+                user.auto_renew_enabled = False
+                # Keep subscription_status as 'active' until period end
+                # Keep subscription_tier as current tier until period end
+                # Keep subscription_end_date as current end date
+                # Keep stripe_subscription_id for tracking
+                
+            else:
+                # Free users or users without active subscriptions
+                logger.info(f"Free/inactive user cancellation for user {user_id}")
+                
+                # For free users, just mark as canceled but don't change tier
+                if is_free_user:
+                    user.subscription_status = 'canceled'
+                    user.auto_renew_enabled = False
+                    # Keep tier as 'free' - don't change it
+                else:
+                    # Users without active subscriptions - full cancellation
+                    user.subscription_status = 'canceled'
+                    user.subscription_tier = 'free'
+                    user.auto_renew_enabled = False
+                    user.subscription_start_date = None
+                    user.subscription_end_date = None
+                    user.stripe_subscription_id = None
             
             logger.info(f"After update - User {user_id}: status={user.subscription_status}, tier={user.subscription_tier}, auto_renew={user.auto_renew_enabled}, end_date={user.subscription_end_date}")
             
