@@ -395,16 +395,83 @@ async def test_award_reward(
             return {
                 "success": success,
                 "eligibility": eligibility,
-                "message": "Reward awarded successfully" if success else "Failed to award reward"
+                "message": "Reward awarded successfully" if success else "Failed to award reward",
+                "debug_info": {
+                    "user_id": user_id,
+                    "review_id": review_id,
+                    "months": 1
+                }
             }
         except Exception as e:
             logger.error(f"Error in test award: {e}")
+            import traceback
+            error_details = traceback.format_exc()
             return {
                 "success": False,
                 "eligibility": eligibility,
                 "error": str(e),
+                "error_details": error_details,
                 "message": f"Error occurred: {str(e)}"
             }
     except Exception as e:
         logger.error(f"Error testing award: {e}")
         return {"error": f"Test failed: {str(e)}"}
+
+@router.get("/test-db/{user_id}/{review_id}")
+async def test_database_operations(
+    user_id: str,
+    review_id: str,
+    db: Session = Depends(get_db)
+):
+    """Test database operations directly (no auth required)"""
+    try:
+        # Test 1: Check if user exists
+        user = db.query(User).filter(User.id == user_id).first()
+        user_exists = user is not None
+        
+        # Test 2: Check if review exists
+        review = db.query(Review).filter(Review.id == review_id).first()
+        review_exists = review is not None
+        
+        # Test 3: Check if reward already exists
+        existing_reward = db.query(UserReward).filter(
+            UserReward.user_id == user_id,
+            UserReward.review_id == review_id
+        ).first()
+        reward_exists = existing_reward is not None
+        
+        # Test 4: Try to create a test reward (without committing)
+        test_reward = None
+        try:
+            test_reward = UserReward(
+                user_id=user_id,
+                review_id=review_id,
+                months_awarded=1,
+                awarded_by=None
+            )
+            db.add(test_reward)
+            db.flush()  # Test without committing
+            db.rollback()  # Rollback the test
+            reward_creation_ok = True
+        except Exception as e:
+            reward_creation_ok = False
+            reward_error = str(e)
+        
+        return {
+            "user_exists": user_exists,
+            "user_email": user.email if user else None,
+            "review_exists": review_exists,
+            "review_created_at": review.created_at.isoformat() if review else None,
+            "review_is_anonymous": review.is_anonymous if review else None,
+            "reward_already_exists": reward_exists,
+            "reward_creation_test": reward_creation_ok,
+            "reward_error": reward_error if not reward_creation_ok else None,
+            "user_subscription_status": user.subscription_status if user else None,
+            "user_subscription_end_date": user.subscription_end_date.isoformat() if user and user.subscription_end_date else None
+        }
+    except Exception as e:
+        import traceback
+        return {
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
