@@ -58,15 +58,15 @@ class SubscriptionResponse(BaseModel):
 class SubscriptionCancelRequest(BaseModel):
     reason: Optional[str] = None
 
-# Plan ID mapping - maps numeric IDs from frontend to string-based plan identifiers
+# Plan ID mapping - maps numeric IDs from frontend to display-friendly plan names
 PLAN_ID_MAPPING = {
-    1: "shipper_free",           # Free shipper plan
-    2: "shipper_monthly",        # Shipper monthly
-    3: "shipper_annual",         # Shipper annual
-    4: "forwarder_free",         # Free forwarder plan
-    5: "forwarder_monthly",      # Forwarder monthly
-    6: "forwarder_annual",       # Forwarder annual
-    7: "forwarder_annual_plus"   # Forwarder annual plus
+    1: "Free Shipper",           # Free shipper plan
+    2: "Shipper Monthly",        # Shipper monthly
+    3: "Shipper Annual",         # Shipper annual
+    4: "Free Forwarder",         # Free forwarder plan
+    5: "Forwarder Monthly",      # Forwarder monthly
+    6: "Forwarder Annual",       # Forwarder annual
+    7: "Forwarder Annual Plus"   # Forwarder annual plus
 }
 
 class AutoRenewalToggleRequest(BaseModel):

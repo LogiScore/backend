@@ -324,16 +324,16 @@ async def get_dashboard_stats(
         
         # Get users with paid subscriptions
         paid_users = db.query(User).filter(
-            User.subscription_tier.in_(['shipper_monthly', 'shipper_annual', 'forwarder_monthly', 'forwarder_annual', 'forwarder_annual_plus'])
+            User.subscription_tier.in_(['Shipper Monthly', 'Shipper Annual', 'Forwarder Monthly', 'Forwarder Annual', 'Forwarder Annual Plus'])
         ).all()
         
         # Calculate revenue based on subscription tiers
         subscription_prices = {
-            'shipper_monthly': 29.99,
-            'shipper_annual': 299.99,
-            'forwarder_monthly': 99.99,
-            'forwarder_annual': 999.99,
-            'forwarder_annual_plus': 1999.99
+            'Shipper Monthly': 29.99,
+            'Shipper Annual': 299.99,
+            'Forwarder Monthly': 99.99,
+            'Forwarder Annual': 999.99,
+            'Forwarder Annual Plus': 1999.99
         }
         
         for user in paid_users:
@@ -482,11 +482,11 @@ async def get_analytics(
         # Calculate revenue metrics per month
         revenue_data = []
         subscription_prices = {
-            'shipper_monthly': 29.99,
-            'shipper_annual': 299.99,
-            'forwarder_monthly': 99.99,
-            'forwarder_annual': 999.99,
-            'forwarder_annual_plus': 1999.99
+            'Shipper Monthly': 29.99,
+            'Shipper Annual': 299.99,
+            'Forwarder Monthly': 99.99,
+            'Forwarder Annual': 999.99,
+            'Forwarder Annual Plus': 1999.99
         }
         
         for i in range(5, -1, -1):
@@ -623,7 +623,7 @@ async def update_user_subscription(
             )
         
         # Validate subscription tier
-        valid_tiers = ['free', 'monthly', 'annual', 'enterprise', 'shipper_monthly', 'shipper_annual', 'forwarder_monthly', 'forwarder_annual', 'forwarder_annual_plus']
+        valid_tiers = ['free', 'monthly', 'annual', 'enterprise', 'Shipper Monthly', 'Shipper Annual', 'Forwarder Monthly', 'Forwarder Annual', 'Forwarder Annual Plus']
         logger.info(f"Subscription update request: {subscription_update.dict()}")
         logger.info(f"Valid tiers: {valid_tiers}")
         logger.info(f"Requested tier: {subscription_update.tier}")

@@ -23,11 +23,11 @@ class SubscriptionExpirationService:
     def _get_subscription_price(self, tier: str) -> Dict[str, Any]:
         """Get subscription pricing information for a given tier"""
         pricing = {
-            'shipper_monthly': {'amount': 29.99, 'currency': 'USD', 'period': 'month'},
-            'shipper_annual': {'amount': 299.99, 'currency': 'USD', 'period': 'year'},
-            'forwarder_monthly': {'amount': 99.99, 'currency': 'USD', 'period': 'month'},
-            'forwarder_annual': {'amount': 999.99, 'currency': 'USD', 'period': 'year'},
-            'forwarder_annual_plus': {'amount': 1999.99, 'currency': 'USD', 'period': 'year'},
+            'Shipper Monthly': {'amount': 29.99, 'currency': 'USD', 'period': 'month'},
+            'Shipper Annual': {'amount': 299.99, 'currency': 'USD', 'period': 'year'},
+            'Forwarder Monthly': {'amount': 99.99, 'currency': 'USD', 'period': 'month'},
+            'Forwarder Annual': {'amount': 999.99, 'currency': 'USD', 'period': 'year'},
+            'Forwarder Annual Plus': {'amount': 1999.99, 'currency': 'USD', 'period': 'year'},
             'monthly': {'amount': 29.99, 'currency': 'USD', 'period': 'month'},
             'annual': {'amount': 299.99, 'currency': 'USD', 'period': 'year'},
             'enterprise': {'amount': 999.99, 'currency': 'USD', 'period': 'year'}

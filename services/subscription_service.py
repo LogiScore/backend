@@ -195,7 +195,7 @@ class SubscriptionService:
                 raise Exception("New tier is required")
             
             # Validate tier value
-            valid_tiers = ['free', 'monthly', 'annual', 'enterprise', 'shipper_monthly', 'shipper_annual', 'forwarder_monthly', 'forwarder_annual', 'forwarder_annual_plus']
+            valid_tiers = ['free', 'monthly', 'annual', 'enterprise', 'Shipper Monthly', 'Shipper Annual', 'Forwarder Monthly', 'Forwarder Annual', 'Forwarder Annual Plus']
             if new_tier not in valid_tiers:
                 raise Exception(f"Invalid tier: {new_tier}. Must be one of: {', '.join(valid_tiers)}")
             
