@@ -332,6 +332,47 @@ async def create_review(
             except Exception as e:
                 # Don't fail the review creation if score threshold checks fail
                 logger.error(f"Failed to check score thresholds for freight forwarder {review.freight_forwarder_id}: {str(e)}")
+            
+            # Check and award promotion reward if user is authenticated
+            if current_user and current_user.get("id"):
+                try:
+                    from services.promotion_service import PromotionService
+                    promotion_service = PromotionService(db)
+                    reward_awarded = promotion_service.check_and_award_promotion_reward(
+                        user_id=str(current_user["id"]),
+                        review_id=str(review.id)
+                    )
+                    
+                    if reward_awarded:
+                        logger.info(f"Promotion reward awarded to user {current_user['id']} for review {review.id}")
+                        
+                        # Send reward notification email
+                        try:
+                            from email_service import email_service
+                            user_email = current_user.get("email")
+                            user_name = current_user.get("full_name") or current_user.get("username", "User")
+                            
+                            if user_email:
+                                # Get user's current reward count for email
+                                eligibility = promotion_service.check_user_eligibility(str(current_user["id"]))
+                                total_rewards = eligibility.get("currentRewards", 0)
+                                max_rewards = eligibility.get("maxRewards", 3)
+                                
+                                await email_service.send_reward_notification_email(
+                                    user_email=user_email,
+                                    user_name=user_name,
+                                    months_awarded=promotion_service.get_promotion_config().reward_months,
+                                    total_rewards=total_rewards,
+                                    max_rewards=max_rewards
+                                )
+                                logger.info(f"Reward notification email sent to {user_email}")
+                        except Exception as e:
+                            logger.error(f"Failed to send reward notification email: {str(e)}")
+                    else:
+                        logger.info(f"No promotion reward awarded to user {current_user['id']} for review {review.id}")
+                except Exception as e:
+                    # Don't fail the review creation if promotion logic fails
+                    logger.error(f"Failed to process promotion reward for user {current_user.get('id')}: {str(e)}")
                 
         except Exception as e:
             logger.error(f"Error committing review: {e}")

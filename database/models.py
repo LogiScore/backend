@@ -48,6 +48,7 @@ class User(Base):
     review_notifications = relationship("ReviewNotification", back_populates="user")
     score_threshold_subscriptions = relationship("ScoreThresholdSubscription", back_populates="user")
     score_threshold_notifications = relationship("ScoreThresholdNotification", back_populates="user")
+    user_rewards = relationship("UserReward", foreign_keys="UserReward.user_id", back_populates="user")
 
 class FreightForwarder(Base):
     __tablename__ = "freight_forwarders"
@@ -145,6 +146,7 @@ class Review(Base):
     category_scores = relationship("ReviewCategoryScore", back_populates="review")
     disputes = relationship("Dispute", back_populates="review")
     notifications = relationship("ReviewNotification", back_populates="review")
+    user_rewards = relationship("UserReward", back_populates="review")
 
 class ReviewCategoryScore(Base):
     __tablename__ = "review_category_scores"
@@ -299,4 +301,31 @@ class ScoreThresholdNotification(Base):
     # Relationships
     user = relationship("User", back_populates="score_threshold_notifications")
     freight_forwarder = relationship("FreightForwarder", back_populates="score_threshold_notifications")
-    subscription = relationship("ScoreThresholdSubscription", back_populates="notifications") 
+    subscription = relationship("ScoreThresholdSubscription", back_populates="notifications")
+
+class PromotionConfig(Base):
+    __tablename__ = "promotion_config"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    is_active = Column(Boolean, default=True)
+    max_rewards_per_user = Column(Integer, default=3)
+    reward_months = Column(Integer, default=1)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+class UserReward(Base):
+    __tablename__ = "user_rewards"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    review_id = Column(UUID(as_uuid=True), ForeignKey("reviews.id"), nullable=False)
+    months_awarded = Column(Integer, nullable=False)
+    awarded_at = Column(DateTime(timezone=True), server_default=func.now())
+    awarded_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)  # Admin who awarded it
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    user = relationship("User", foreign_keys=[user_id], back_populates="user_rewards")
+    review = relationship("Review", back_populates="user_rewards")
+    awarded_by_user = relationship("User", foreign_keys=[awarded_by]) 

@@ -2776,5 +2776,200 @@ class EmailService:
             logger.info(f"FALLBACK: Subscription confirmation would be sent to user {user_id}")
             return True  # Return True for fallback mode
 
+    async def send_reward_notification_email(self, user_email: str, user_name: str, months_awarded: int, total_rewards: int, max_rewards: int) -> bool:
+        """Send reward notification email to user"""
+        try:
+            subject = f"🎉 You've earned {months_awarded} month{'s' if months_awarded > 1 else ''} free subscription!"
+            
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Reward Notification - LogiScore</title>
+                <style>
+                    body {{
+                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                        line-height: 1.6;
+                        color: #333;
+                        max-width: 600px;
+                        margin: 0 auto;
+                        padding: 20px;
+                        background-color: #f4f4f4;
+                    }}
+                    .container {{
+                        background-color: white;
+                        padding: 30px;
+                        border-radius: 10px;
+                        box-shadow: 0 0 20px rgba(0,0,0,0.1);
+                    }}
+                    .header {{
+                        text-align: center;
+                        margin-bottom: 30px;
+                        padding-bottom: 20px;
+                        border-bottom: 2px solid #e9ecef;
+                    }}
+                    .logo {{
+                        font-size: 28px;
+                        font-weight: bold;
+                        color: #2c3e50;
+                        margin-bottom: 10px;
+                    }}
+                    .reward-badge {{
+                        background: linear-gradient(135deg, #28a745, #20c997);
+                        color: white;
+                        padding: 15px 30px;
+                        border-radius: 25px;
+                        font-size: 18px;
+                        font-weight: bold;
+                        display: inline-block;
+                        margin: 20px 0;
+                    }}
+                    .reward-details {{
+                        background-color: #f8f9fa;
+                        padding: 20px;
+                        border-radius: 8px;
+                        margin: 20px 0;
+                        border-left: 4px solid #28a745;
+                    }}
+                    .cta-button {{
+                        display: inline-block;
+                        background: linear-gradient(135deg, #007bff, #0056b3);
+                        color: white;
+                        padding: 12px 30px;
+                        text-decoration: none;
+                        border-radius: 25px;
+                        font-weight: bold;
+                        margin: 20px 0;
+                        transition: transform 0.2s;
+                    }}
+                    .cta-button:hover {{
+                        transform: translateY(-2px);
+                    }}
+                    .footer {{
+                        margin-top: 30px;
+                        padding-top: 20px;
+                        border-top: 1px solid #e9ecef;
+                        font-size: 14px;
+                        color: #6c757d;
+                        text-align: center;
+                    }}
+                    .progress-bar {{
+                        background-color: #e9ecef;
+                        border-radius: 10px;
+                        height: 20px;
+                        margin: 10px 0;
+                        overflow: hidden;
+                    }}
+                    .progress-fill {{
+                        background: linear-gradient(90deg, #28a745, #20c997);
+                        height: 100%;
+                        border-radius: 10px;
+                        transition: width 0.3s ease;
+                        width: {(total_rewards / max_rewards) * 100}%;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <div class="logo">LogiScore</div>
+                        <h1>🎉 Congratulations!</h1>
+                    </div>
+                    
+                    <p>Hi {user_name or 'User'},</p>
+                    
+                    <p>Great news! You've just earned a reward for submitting a review on LogiScore.</p>
+                    
+                    <div style="text-align: center;">
+                        <div class="reward-badge">
+                            +{months_awarded} Month{'s' if months_awarded > 1 else ''} Free Subscription
+                        </div>
+                    </div>
+                    
+                    <div class="reward-details">
+                        <h3>Your Reward Details:</h3>
+                        <p><strong>Months Awarded:</strong> {months_awarded} month{'s' if months_awarded > 1 else ''}</p>
+                        <p><strong>Total Rewards Earned:</strong> {total_rewards} of {max_rewards}</p>
+                        
+                        <div class="progress-bar">
+                            <div class="progress-fill"></div>
+                        </div>
+                        <p style="text-align: center; margin-top: 10px; font-size: 14px;">
+                            {total_rewards}/{max_rewards} rewards earned
+                        </p>
+                    </div>
+                    
+                    <p>Your free subscription time has been automatically added to your account. You can continue earning rewards by submitting more reviews!</p>
+                    
+                    <div style="text-align: center;">
+                        <a href="https://logiscore.net" class="cta-button">View Your Account</a>
+                    </div>
+                    
+                    <p>Keep sharing your experiences to help the freight forwarding community make better decisions!</p>
+                    
+                    <p>Best regards,<br>The LogiScore Team</p>
+                    
+                    <div class="footer">
+                        <p>This email was sent to {user_email}. If you have any questions, please contact us at support@logiscore.net</p>
+                        <p>&copy; 2024 LogiScore. All rights reserved.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            text_content = f"""
+            Reward Notification - LogiScore
+            
+            Hi {user_name or 'User'},
+            
+            Great news! You've just earned a reward for submitting a review on LogiScore.
+            
+            🎉 REWARD EARNED: +{months_awarded} Month{'s' if months_awarded > 1 else ''} Free Subscription
+            
+            Your Reward Details:
+            - Months Awarded: {months_awarded} month{'s' if months_awarded > 1 else ''}
+            - Total Rewards Earned: {total_rewards} of {max_rewards}
+            
+            Your free subscription time has been automatically added to your account. 
+            You can continue earning rewards by submitting more reviews!
+            
+            View Your Account: https://logiscore.net
+            
+            Keep sharing your experiences to help the freight forwarding community make better decisions!
+            
+            Best regards,
+            The LogiScore Team
+            
+            ---
+            This email was sent to {user_email}. If you have any questions, please contact us at support@logiscore.net
+            © 2024 LogiScore. All rights reserved.
+            """
+            
+            # Send email using SendGrid
+            sg = SendGridAPIClient(self.api_key)
+            message = Mail(
+                from_email=Email(self.from_email, self.from_name),
+                to_emails=user_email,
+                subject=subject,
+                plain_text_content=text_content,
+                html_content=html_content
+            )
+            
+            response = sg.send(message)
+            
+            if response.status_code == 202:
+                logger.info(f"Reward notification sent successfully to {user_email}")
+                return True
+            else:
+                logger.error(f"Failed to send reward notification to {user_email}. Status code: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error sending reward notification to {user_email}: {str(e)}")
+            return False
+
 # Create singleton instance
 email_service = EmailService()
