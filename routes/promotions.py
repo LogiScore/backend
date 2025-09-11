@@ -306,3 +306,66 @@ async def debug_user_promotion_status(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Debug failed: {str(e)}"
         )
+
+@router.get("/debug/public/user/{user_id}")
+async def debug_user_promotion_status_public(
+    user_id: str,
+    db: Session = Depends(get_db)
+):
+    """Public debug endpoint to check user's promotion status (no auth required)"""
+    try:
+        promotion_service = PromotionService(db)
+        
+        # Get user details
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return {"error": "User not found"}
+        
+        # Check eligibility
+        eligibility = promotion_service.check_user_eligibility(user_id)
+        
+        # Get user's rewards
+        user_rewards = db.query(UserReward).filter(UserReward.user_id == user_id).all()
+        
+        # Get user's reviews
+        user_reviews = db.query(Review).filter(Review.user_id == user_id).all()
+        
+        # Get promotion config
+        config = promotion_service.get_promotion_config()
+        
+        return {
+            "user_id": user_id,
+            "user_email": user.email,
+            "user_name": user.full_name,
+            "subscription_status": user.subscription_status,
+            "subscription_end_date": user.subscription_end_date.isoformat() if user.subscription_end_date else None,
+            "eligibility": eligibility,
+            "user_rewards_count": len(user_rewards),
+            "user_rewards": [
+                {
+                    "id": reward.id,
+                    "review_id": str(reward.review_id),
+                    "months_awarded": reward.months_awarded,
+                    "awarded_at": reward.awarded_at.isoformat() if reward.awarded_at else None
+                }
+                for reward in user_rewards
+            ],
+            "user_reviews_count": len(user_reviews),
+            "user_reviews": [
+                {
+                    "id": str(review.id),
+                    "freight_forwarder_id": str(review.freight_forwarder_id),
+                    "created_at": review.created_at.isoformat() if review.created_at else None,
+                    "is_anonymous": review.is_anonymous
+                }
+                for review in user_reviews
+            ],
+            "promotion_config": {
+                "is_active": config.is_active if config else False,
+                "max_rewards_per_user": config.max_rewards_per_user if config else 0,
+                "reward_months": config.reward_months if config else 0
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error debugging user promotion status: {e}")
+        return {"error": f"Debug failed: {str(e)}"}
