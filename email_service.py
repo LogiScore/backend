@@ -2703,7 +2703,7 @@ class EmailService:
                         <p>You now have access to all the features included in your {plan_name} plan. Start exploring LogiScore and make the most of your subscription!</p>
                         
                         <div style="text-align: center;">
-                            <a href="https://logiscore.net/dashboard" class="cta-button">Go to Dashboard</a>
+                            <a href="https://logiscore.net" class="cta-button">Go to LogiScore</a>
                         </div>
                         
                         <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
@@ -2738,7 +2738,7 @@ class EmailService:
             You now have access to all the features included in your {plan_name} plan. 
             Start exploring LogiScore and make the most of your subscription!
             
-            Go to Dashboard: https://logiscore.net/dashboard
+            Go to LogiScore: https://logiscore.net
             
             If you have any questions or need assistance, please don't hesitate to contact our support team.
             
