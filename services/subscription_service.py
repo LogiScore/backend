@@ -84,14 +84,14 @@ class SubscriptionService:
                     # Free tier - no Stripe subscription needed
                     stripe_subscription = None
             
-            # Update database - temporarily commented out until migration
-            # await self._update_user_subscription_db(
-            #     user_id, 
-            #     tier, 
-            #     stripe_subscription, 
-            #     trial_days, 
-            #     db
-            # )
+            # Update database
+            await self._update_user_subscription_db(
+                user_id, 
+                tier, 
+                stripe_subscription, 
+                trial_days, 
+                db
+            )
             
             # Send confirmation email
             if stripe_subscription:
