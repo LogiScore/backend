@@ -385,17 +385,26 @@ async def test_award_reward(
         print(f"Eligibility check: {eligibility}")
         
         # Try to award the reward
-        success = promotion_service.award_user_reward(
-            user_id=user_id,
-            review_id=review_id,
-            months=1
-        )
-        
-        return {
-            "success": success,
-            "eligibility": eligibility,
-            "message": "Reward awarded successfully" if success else "Failed to award reward"
-        }
+        try:
+            success = promotion_service.award_user_reward(
+                user_id=user_id,
+                review_id=review_id,
+                months=1
+            )
+            
+            return {
+                "success": success,
+                "eligibility": eligibility,
+                "message": "Reward awarded successfully" if success else "Failed to award reward"
+            }
+        except Exception as e:
+            logger.error(f"Error in test award: {e}")
+            return {
+                "success": False,
+                "eligibility": eligibility,
+                "error": str(e),
+                "message": f"Error occurred: {str(e)}"
+            }
     except Exception as e:
         logger.error(f"Error testing award: {e}")
         return {"error": f"Test failed: {str(e)}"}

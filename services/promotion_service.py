@@ -81,33 +81,42 @@ class PromotionService:
     def award_user_reward(self, user_id: str, review_id: str, months: int, awarded_by: str = None) -> bool:
         """Award a reward to a user and extend their subscription"""
         try:
+            logger.info(f"🔍 Starting award process for user {user_id}, review {review_id}")
+            
             # Check if user exists
             user = self.db.query(User).filter(User.id == user_id).first()
             if not user:
-                logger.error(f"User {user_id} not found")
+                logger.error(f"❌ User {user_id} not found")
                 return False
+            logger.info(f"✅ User found: {user.email}")
             
             # Check if review exists
             review = self.db.query(Review).filter(Review.id == review_id).first()
             if not review:
-                logger.error(f"Review {review_id} not found")
+                logger.error(f"❌ Review {review_id} not found")
                 return False
+            logger.info(f"✅ Review found: {review.id}")
             
             # Extend user's subscription
             from datetime import datetime, timedelta
+            
+            logger.info(f"📅 Current subscription end date: {user.subscription_end_date}")
             
             # Calculate new end date
             current_end_date = user.subscription_end_date
             if current_end_date and current_end_date > datetime.utcnow():
                 # User has active subscription, extend from current end date
                 new_end_date = current_end_date + timedelta(days=months * 30)
+                logger.info(f"📅 Extending from current end date: {new_end_date}")
             else:
                 # User has no active subscription, start from now
                 new_end_date = datetime.utcnow() + timedelta(days=months * 30)
+                logger.info(f"📅 Starting new subscription from now: {new_end_date}")
             
             # Update user's subscription
             user.subscription_end_date = new_end_date
             user.subscription_status = 'active'  # Ensure status is active
+            logger.info(f"✅ Updated user subscription to {new_end_date}")
             
             # Create reward record
             reward = UserReward(
@@ -116,12 +125,16 @@ class PromotionService:
                 months_awarded=months,
                 awarded_by=awarded_by
             )
+            logger.info(f"🎁 Creating reward record: {months} months")
             
             self.db.add(reward)
-            self.db.commit()
+            logger.info(f"💾 Added reward to database session")
             
-            logger.info(f"Reward awarded: {months} months to user {user_id} for review {review_id}")
-            logger.info(f"User {user_id} subscription extended to {new_end_date}")
+            self.db.commit()
+            logger.info(f"✅ Committed to database")
+            
+            logger.info(f"🎉 Reward awarded: {months} months to user {user_id} for review {review_id}")
+            logger.info(f"📅 User {user_id} subscription extended to {new_end_date}")
             return True
         except Exception as e:
             logger.error(f"Error awarding user reward: {e}")
