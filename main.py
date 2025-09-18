@@ -640,7 +640,7 @@ async def stripe_webhook_v1(request: Request):
 @app.get("/api/v1/webhook/test")
 async def test_webhook_v1():
     """Test endpoint to verify webhook v1 endpoint is accessible"""
-    return {"message": "Stripe webhook v1 endpoint is accessible", "status": "ready"}
+    return {"message": "Stripe webhook v1 endpoint is accessible", "status": "ready", "version": "1.0.6"}
 
 @app.get("/api/cors-test")
 async def cors_test():
