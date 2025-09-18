@@ -629,6 +629,19 @@ app.include_router(auth.router, prefix="/auth", tags=["auth-compat"])
 from routes import webhooks
 app.include_router(webhooks.router, prefix="/api/webhooks", tags=["webhooks"])
 
+# Add direct webhook route for Stripe compatibility
+@app.post("/api/v1/webhook")
+async def stripe_webhook_v1(request: Request):
+    """Handle Stripe webhooks at the expected URL path"""
+    # Import the webhook handler from the webhooks module
+    from routes.webhooks import stripe_webhook
+    return await stripe_webhook(request)
+
+@app.get("/api/v1/webhook/test")
+async def test_webhook_v1():
+    """Test endpoint to verify webhook v1 endpoint is accessible"""
+    return {"message": "Stripe webhook v1 endpoint is accessible", "status": "ready"}
+
 @app.get("/api/cors-test")
 async def cors_test():
     """Test endpoint to verify CORS is working"""
